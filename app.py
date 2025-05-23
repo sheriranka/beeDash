@@ -1,6 +1,9 @@
 #imports
 
 from dash import Dash, dash_table, dcc, html, Input, Output, callback, State
+import dash_daq as daq
+
+
 import pandas as pd
 import numpy as np
 import math
@@ -8,15 +11,18 @@ import dash_bootstrap_components as dbc
 import base64
 import io
 import dash
+import pytz
 from io import BytesIO
-import plotly.express as px
-from plotly.subplots import make_subplots
+
+from timezonefinder import TimezoneFinder 
 
 
 
 #external files
 
-from flights import classifyTrips
+from flights import classifyLoc, cleanData, summaryData, makeTotalSum
+from graphing import getSRSS, separateFlights, addShapes, createActoGraphAll, flightDensity, flightLength, createActoGraph, plotHist
+
 
 #app creation
 
@@ -24,23 +30,40 @@ external_stylesheets = [dbc.themes.BOOTSTRAP,'https://codepen.io/chriddyp/pen/bW
 app = Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
 
+#constants
+
+tzf = TimezoneFinder() 
+
 #layout
 
 app.layout = html.Div([
         
          html.Div([
-                            
-                            html.H1('Bee :]', style={'textAlign': 'center', 'font-size':'70px'}),
+                            html.Div(id='sr-ss'),
+                            html.H5('Bee Analysis Dashboard', style={'textAlign': 'center'}),
                             html.Img(src="https://cdn.pixabay.com/photo/2021/03/27/05/13/bee-6127510_1280.jpg",style={'width':'100%'}),
                             html.P("""This tool serves to visualize and analyze records of bees at the entrance to the colony.
-                            It requires the following columns:"""),
+                            It requires the following columns in order:"""),
                             html.Ul(id='requirements',children=[
-                                html.Li("pollen_score: numerical descriptor of pollen in sighting."),
-                                html.Li("event: descriptor of trajectory of sighting."),
-                                html.Li("tagid: id of bee in sighting."),
-                                html.Li("starttime: time of start of sighting."),
-                                html.Li("endtime: time of end of sighting.")
+                                html.Li("Column with bee tag ID."),
+                                html.Li("Column with datetime."),
+                                html.Li("Column with entering/exiting label.")
+
                             ]),
+                            
+                            html.P("Input latitude and longitude:"),
+                            
+                            dcc.Input(
+                            id="lat", type="number",
+                            placeholder="Latitude",
+                            value="None"
+                            ),
+                            dcc.Input(
+                            id="lon", type="number",
+                            placeholder="Longitude",
+                            value="None"
+                            ),
+                            
                             html.P("Upload a csv file to begin."),
 
                             dcc.Upload(
@@ -48,7 +71,7 @@ app.layout = html.Div([
                                         children=html.Button("Upload CSV"),
                                         multiple=True,
                                     ),
-                        ], style={'width':'33%', 'display': 'flex', 'flexDirection': 'column'}),
+                        ], style={'width':'20%', 'display': 'flex', 'flexDirection': 'column'}),
                         
         html.Div([
         
@@ -59,9 +82,8 @@ app.layout = html.Div([
                 children=html.Div(id="output-data")
             ),
             dcc.Store(id='stored-data', storage_type='session'),
-            dcc.Store(id='flight-itinerary', storage_type='session'),
         
-        ], style={'width':'66%', 'display': 'flex', 'flexDirection': 'column'})
+        ], style={'width':'80%', 'display': 'flex', 'flexDirection': 'column'})
 
 
 ],style={'display': 'flex', 'flexDirection': 'row', 'marginRight': '20px', 'marginLeft': '20px', 'fontFamily': 'Arial, sans-serif'})
@@ -78,82 +100,125 @@ def parse_contents(contents, filename, date):
     if 'csv' in filename:
         df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
         
-        #unique bees for dropdown 
-        selectBee = pd.unique(df['tagid'])
-        
         ndf = df.copy()
         
+        ndf.columns.values[0] = "tagID"
+        ndf.columns.values[1] = "datetime"
+        ndf.columns.values[2] = "event"
+        
+        #unique bees for dropdown 
+        selectBee = pd.unique(ndf['tagID'])
+        
         #fix datetime from str to datetime       
-        ndf['starttime'] = pd.to_datetime(ndf['starttime'], format='mixed')   
-        ndf['endtime'] = pd.to_datetime(ndf['endtime'], format='mixed')   
+        ndf['datetime'] = pd.to_datetime(ndf['datetime'], format='mixed')    
         
-        #all bee itinerary
-        newdataset = {'beeID':[],'tripstart':[],'tripend':[]}
-        for bee in selectBee:
-            dataset = classifyTrips(ndf[ndf['tagid'] == bee].copy())
-            for index, row in dataset.iterrows():
-                if row['location'] == "Outside":
-                    newdataset['beeID'].append(bee)
-                    newdataset['tripstart'].append(row['start'])
-                    newdataset['tripend'].append(row['end'])
-                    
-        newdf = pd.DataFrame.from_dict(newdataset)
-        newdf['duration'] = newdf['tripend'] - newdf['tripstart']
-        newdf['hour'] = newdf['tripstart'].dt.hour
-        newdf['day'] = newdf['tripstart'].dt.day
+        allActivity, flight = cleanData(ndf)
+        flight['date'] = flight['tripStart'].apply(lambda x: f'{x.month}/{x.day}')
         
-        binsy = len(newdf['day'].unique())
-        binsx = len(newdf['hour'].unique())
-             
-        fig = px.density_heatmap(newdf, nbinsy=binsy, x="hour", y="day", nbinsx=binsx, color_continuous_scale="Viridis")
+        beeSummary = summaryData(allActivity,flight)
         
-        inddf = newdf.drop_duplicates(subset=['beeID', 'hour'], keep='last')
-        fig2 = px.density_heatmap(inddf, nbinsy=binsy, x="hour", y="day", nbinsx=binsx, color_continuous_scale="Viridis")
+        density = flightDensity(flight)
+        length = flightLength(flight)
         
-        fig3 = px.histogram(newdf, x='hour')
+        Summary0, Summary1 = makeTotalSum(beeSummary, flight)
         
-        fig4 = px.density_contour(newdf, x="hour", y="duration")
-        fig4.update_traces(contours_coloring="fill", contours_showlabels = True)
+        Summary0.reset_index(inplace=True)
+        Summary0 = Summary0.rename(columns={'index': 'Classification'})
         
-        fig5 = px.area(newdf, x="day", y="duration", color="beeID", line_group="beeID", color_discrete_sequence=px.colors.qualitative.Dark24)
-    
-        
-        return html.Div([
-        
-            dcc.Dropdown(
-                options=selectBee,
-                #options=['55','66'],
-                placeholder="Select individual tag",
-                id="dropdown-bee",
-                multi=False,
-                searchable=True),
-            dcc.Store(id='stored-data', data=df.to_dict('records')),
-            dcc.Store(id='flight-itinerary', data=newdf.to_dict('records')), 
-            html.H3("Chronogram"),
-            dcc.Graph(id="output-graphs"),
-            html.H3("Flights by hour of individual bee"),
-            dcc.Graph(id="output-hour"),
 
+        return html.Div([
+            
+            dcc.Store(id='stored-data', data=ndf.to_dict('records')), 
+            dcc.Store(id='activity', data=allActivity.to_dict('records')), 
+            dcc.Store(id='flights', data=flight.to_dict('records')), 
             
             
-            html.H3("Heatmap of all bee flights"),
-            dcc.Graph(id="heatmap-flights",figure=fig),
-            html.H3("Heatmap of unique bee flights per hour"),
-            dcc.Graph(id="heatmap-bee",figure=fig2),
-            html.H3("Flights by hour of all bees"),
-            dcc.Graph(id="flights-bar",figure=fig3),
-            html.H3("Flight duration by hour of all bees"),
-            dcc.Graph(id="flights-density",figure=fig4),
-            html.H3("Flight duration by day of all bees"),
-            dcc.Graph(id="flights-area",figure=fig5)
+            dcc.Tabs([
+										                  
+                    
+					dcc.Tab(label='Individual Bee Data', children=[
+                    
+					html.Div([          
+                        html.P("Utilize the dropdown to select individual bee tag."),
+                        dcc.Dropdown(
+                            options=selectBee,
+                            #options=['55','66'],
+                            placeholder="Select individual tag",
+                            id="dropdown-bee",
+                            multi=False,
+                            searchable=True),
+                        html.Div(id="individual-chronogram"),
+                        html.Div(id="individual-bee")                        
+                        ],style={'display': 'flex', 'flexDirection': 'column','marginRight': '10px', 'marginLeft': '10px'}),										
+					]),
+											
+					dcc.Tab(label='Hive Data', children=[
+                        html.Div([
+                        
+                            dash_table.DataTable(
+                            id='datatable',
+                            columns=[
+                                {"name": str(i), "id": str(i)} for i in beeSummary.columns
+                            ],
+                            data=beeSummary.to_dict('records'),
+                            page_action="native",
+                            page_current= 0,
+                            page_size= 10,
+                            style_table={'overflowX': 'auto'},
+                            ),
+                        
+                        
+                        ],style={'display': 'flex', 'flexDirection': 'column','marginRight': '10px', 'marginLeft': '10px'}),
+
+                        
+
+                        html.Div([
+                                
+                            dash_table.DataTable(
+                            id='datatable-sum0',
+                            columns=[
+                                {"name": str(i), "id": str(i)} for i in Summary0.columns
+                            ],
+                            data=Summary0.to_dict('records'),
+                            page_action="native",
+                            style_table={'overflowX': 'auto'},
+                            ),
+                        
+                            html.Div(style={'width': '200px'}),
+                            
+                            dash_table.DataTable(
+                            id='datatable-sum1',
+                            columns=[
+                                {"name": str(i), "id": str(i)} for i in Summary1.columns
+                            ],
+                            data=Summary1.to_dict('records'),
+                            page_action="native",
+                            style_table={'overflowX': 'auto'},
+                            )
+                        
+
+                            ], id='tables', style={'display': 'flex', 'flexDirection': 'row', 'flex-wrap': 'nowrap'}),
+    
+                         html.Div([
+                                
+                                    dcc.Graph(figure = density),
+                                    dcc.Graph(figure = length),
+
+                                ], id='heatmaps', style={'display': 'flex', 'flexDirection': 'row', "width": "100%"}),
+
+                        
+                        html.Div(id='chronogram-all')
+                    ])
+																			
+			])
             
-        ])
+       ])
+            
+
 
     
     else:
         return "The file needs to be a csv."
-
-
 
 # display data from csv after processing
 @app.callback([Output('output-data', 'children')],
@@ -167,48 +232,136 @@ def update_output(list_of_contents, list_of_names, list_of_dates):
     if list_of_contents is not None:
         # parse the content
         children = [
+            
             parse_contents(c, n, d) for c, n, d in
-            zip(list_of_contents, list_of_names, list_of_dates)]
+            zip(list_of_contents, list_of_names, list_of_dates)]   
+        
         return children
+
+
+@app.callback([Output('sr-ss', 'children')],
+              Input('lat', 'value'),
+              Input('lon', 'value'),
+              Input('activity', 'data'),
+              prevent_initial_call=True)    
+def sunrise_sunset(lat, lon, activity):
+    #none checks
+    if activity is None:
+        return None
+    if lat is None:
+         return None
+    if lon is None:
+         return None
+        
+    allActivity = pd.DataFrame(activity)
+    allActivity['start'] = pd.to_datetime(allActivity['start'], format='mixed')  
+
+    lt = float(lat)
+    ln = float(lon)
+    
+    tz = pytz.timezone(tzf.timezone_at(lng=ln, lat=lt))
+    dt = getSRSS(allActivity, tz, lt, ln)
+    dt['date'] = dt['date'].apply(lambda x: f'{x.month}/{x.day}')
+    
+    return [dcc.Store(id='sunrise-sunset', data=dt.to_dict('records'))]
+
+
+@app.callback([Output('chronogram-all', 'children')],
+              Input('sunrise-sunset', 'data'),
+              State('flights', 'data'),
+              State('activity', 'data'),
+              prevent_initial_call=True)             
+def displayChronogramAll(srss, data, activity):
+
+    #none checks
+    if data is None:
+        return None
+    if activity is None:
+        return None
+    if srss is None:
+        return None
+        
+    allActivity = pd.DataFrame(activity)
+    allActivity['start'] = pd.to_datetime(allActivity['start'], format='mixed')   
+    
+    
+    flights = pd.DataFrame(data)
+    flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')
+    flights['tripEnd'] = pd.to_datetime(flights['tripEnd'], format='mixed')
+
+    dt = pd.DataFrame(srss)
+    
+    flights_mod = separateFlights(flights)
+    fig = createActoGraphAll(flights_mod,dt)
+    
+    return [dcc.Graph(figure=fig)]
+
 
 #function to display graphs when bee is selected
 
 @app.callback(
-        Output('output-graphs', 'figure'),
-        Output('output-hour', 'figure'),
+        Output('individual-bee', 'children'),
         Input('dropdown-bee', 'value'),
-        Input('stored-data', 'data'), 
+        Input('flights', 'data'), 
         prevent_initial_call=True
 )
-def show_chronogram(bee_id, data):
+def show_individual(bee_id, data):
     if bee_id is None:
         return None
     if data is None:
         return None
         
-    df = pd.DataFrame(data)
-    bee = df[df['tagid'] == bee_id].copy()
-    
-    #assure datetime format 
-    bee['starttime'] = pd.to_datetime(bee['starttime'], format='mixed')   
-    bee['endtime'] = pd.to_datetime(bee['endtime'], format='mixed')   
-    
-    beeTravel = classifyTrips(bee)
-    beeTravel['hour'] = beeTravel['start'].dt.hour
-    beeTravel['day'] = beeTravel['start'].dt.day
-    
-    beeTravel['duration'] = beeTravel['end'] - beeTravel['start']
-    
-    colors = {'Ramp':'#6379f2','inside':'#ffaa42','outside-foraging':'#52eb8a','inside-short':'#ffebbd','outside-long':'#1b5242','outside-short':'#c5ffc2'}
-    fig = px.timeline(beeTravel, x_start="start", x_end="end", y="location", color="activity",color_discrete_map=colors)
-    fig.update_layout(xaxis=dict(rangeslider=dict(visible=True)))
-    
-    fig2 = px.histogram(beeTravel, x='hour')
+        
+    flights = pd.DataFrame(data)
+    flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')
+    flights['tripEnd'] = pd.to_datetime(flights['tripEnd'], format='mixed')
+        
+    bee = flights[flights['tagID'] == bee_id].copy()
     
     
-    return fig, fig2
+    fig1, fig2 = plotHist(bee)
     
     
+    
+    return [
+    
+        dcc.Graph(figure = fig1),
+        dcc.Graph(figure = fig2)
+    
+    ]
+    
+
+
+@app.callback([Output('individual-chronogram', 'children')],
+              Input('dropdown-bee', 'value'),
+              State('sunrise-sunset', 'data'),
+              State('flights', 'data'),
+              State('activity', 'data'),
+              prevent_initial_call=True)             
+def displayChronogramSingle(beeid, srss, data, activity):
+
+    #none checks
+    if data is None:
+        return None
+    if activity is None:
+        return None
+    if srss is None:
+        return None
+    if beeid is None:
+        return None
+        
+        
+    flights = pd.DataFrame(data)
+    flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')
+    flights['tripEnd'] = pd.to_datetime(flights['tripEnd'], format='mixed')
+
+    dt = pd.DataFrame(srss)
+    
+    flights_mod = separateFlights(flights)
+    bee = flights_mod[flights_mod['tagID'] == beeid]
+    fig = createActoGraph(bee,dt)
+    
+    return [dcc.Graph(figure=fig)]
 
 #run app
 
