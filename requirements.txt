@@ -10,3 +10,5 @@ suntime
 plotly
 matplotlib
 scikit-learn
+gunicorn
+dash-tools
