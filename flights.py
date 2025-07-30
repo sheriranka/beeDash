@@ -13,11 +13,6 @@ import warnings
 #output: new dataframe with locations of individual bee over time
 #works with already processed data
 
-#for clean datasets
-#max time btwn 2 leavings
-t0 = 300
-#max time btwn 2 enterings
-t1 = 3600
 #max time of trip
 t3 = 21600
 
@@ -38,21 +33,8 @@ def classifyLoc(dataset):
                 loc.append("Inside")
             else:
                 loc.append("Outside")
-        elif cur['event'] == "exiting" and next['event'] == "exiting":
-            if (next['datetime'] - cur['datetime']).total_seconds() > t0:
-                loc.append("Inside")
-            else:
-                loc.append("Outside")
-        elif cur['event'] == "entering" and next['event'] == "entering":
-            #if (next['datetime'] - cur['datetime']).total_seconds() > t1:
-            loc.append("Inside")
-            #else:
-            #    loc.append("Outside")
         else:
-            if cur['event'] == "entering":
-                loc.append("Inside")
-            else:
-                loc.append("Outside")
+            loc.append("Inside")
         
         start.append(cur['datetime'])
         end.append(next['datetime'])
@@ -65,11 +47,11 @@ def classifyLoc(dataset):
     flight = ['inside'] * len(BeeTravel)
     
     #Classify short flights as inside-short
-    for i in range(2,len(BeeTravel)-2):
-        if BeeTravel['location'].iloc[i] != "Ramp" and (BeeTravel['end'].iloc[i] - BeeTravel['start'].iloc[i]).total_seconds() < 300:
-            BeeTravel['location'].iloc[i] = BeeTravel['location'].iloc[i-2]
-            if BeeTravel['location'].iloc[i] == "Inside":
-                flight[i] = 'inside-short'
+    #for i in range(2,len(BeeTravel)-2):
+    #    if BeeTravel['location'].iloc[i] != "Ramp" and (BeeTravel['end'].iloc[i] - BeeTravel['start'].iloc[i]).total_seconds() < 300:
+    #        BeeTravel['location'].iloc[i] = BeeTravel['location'].iloc[i-2]
+    #        if BeeTravel['location'].iloc[i] == "Inside":
+    #            flight[i] = 'inside-short'
 
     #Classify outside flights depending on length
     for i in range(len(BeeTravel)):
@@ -99,7 +81,7 @@ def cleanData(data):
         dataset = dataset.assign(tagID = b)
         activity.append(dataset)
         for index, row in dataset.iterrows():
-            if row['location'] == "Outside" and (row['activity'] == "outside-foraging" or row['activity'] == "outside-long"):
+            if row['location'] == "Outside":# and (row['activity'] == "outside-foraging" or row['activity'] == "outside-long"):
                 newdataset['tagID'].append(b)
                 newdataset['tripStart'].append(row['start'])
                 newdataset['tripEnd'].append(row['end'])
@@ -152,24 +134,36 @@ def summaryData(activity,flights):
         indFlight['day'] = indFlight['tripStart'].apply(lambda x: x.date())
         #trips per day
         tpd = indFlight['day'].value_counts().sum()
-        divisor = lastSeen[-1].day - firstSeen[-1].day + 1
+        divisor = (lastSeen[-1].date() - firstSeen[-1].date()).days + 1
         tripsPerDay.append(tpd/divisor)
         
         if len(flights[flights['tagID'] == b]) > 0:
              #longest flight per bee
             longest = flights[flights['tagID'] == b]['duration'].idxmax()
-            longestLen = f'{int(flights.iloc[longest]['duration'].total_seconds()//3600)}:{int(flights.iloc[longest]['duration'].total_seconds()//60)%60}'
-            longestFlight.append(f'{flights.iloc[longest]['tripStart'].replace(microsecond=0)} ~ {longestLen}')
+            mins = int(flights.iloc[longest]['duration'].total_seconds()//60)%60
+            if mins < 10:
+                mins = f'0{mins}'
+            longestLen = f"{int(flights.iloc[longest]['duration'].total_seconds()//3600)}:{mins}"
+            longestFlight.append(f"{flights.iloc[longest]['tripStart'].replace(microsecond=0)} ~ {longestLen}")
             #shortest flight per bee
             shortest = flights[flights['tagID'] == b]['duration'].idxmin()
-            shortestLen = f'{int(flights.iloc[shortest]['duration'].total_seconds()//3600)}:{int(flights.iloc[shortest]['duration'].total_seconds()//60)%60}'
-            shortestFlight.append(f'{flights.iloc[longest]['tripStart'].replace(microsecond=0)} ~ {shortestLen}')
+            mins = int(flights.iloc[shortest]['duration'].total_seconds()//60)%60
+            if mins < 10:
+                mins = f'0{mins}'
+            shortestLen = f"{int(flights.iloc[shortest]['duration'].total_seconds()//3600)}:{mins}"
+            shortestFlight.append(f"{flights.iloc[longest]['tripStart'].replace(microsecond=0)} ~ {shortestLen}")
             
         else:
             longestFlight.append(pd.NA)
             shortestFlight.append(pd.NA)
 
-    avgTrip = [f'{i.seconds//3600}:{(i.seconds//60)%60}' for i in avgTrip]
+    avg = []
+    for i in avgTrip:
+        mins = (i.seconds//60)%60
+        if mins < 10:
+            mins = f'0{mins}'
+        avg.append(f'{i.seconds//3600}:{mins}')
+    avgTrip = avg
     
     beeDict = {"tagID":beeIDs, "First Seen":firstSeen, "Last Seen":lastSeen, 'First Flight':firstFlight, 'Last Flight':lastFlight, 'Longest Flight': longestFlight, 'Shortest Flight': shortestFlight, "Average Length of Flights":avgTrip, "# of Flights":numTrips, 'Average Flights per Day':tripsPerDay}
     beeSummary = pd.DataFrame.from_dict(beeDict)

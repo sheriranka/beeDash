@@ -1,0 +1,12 @@
+pandas
+dash
+dash_daq
+dash_bootstrap_components
+pytz
+datetime
+timezonefinder
+scipy
+suntime
+plotly
+matplotlib
+scikit-learn
