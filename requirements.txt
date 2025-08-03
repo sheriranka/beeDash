@@ -1,5 +1,5 @@
 pandas
-dash
+dash==3.1.1
 dash_daq
 dash_bootstrap_components
 pytz
@@ -10,5 +10,3 @@ suntime
 plotly
 matplotlib
 scikit-learn
-gunicorn
-dash-tools

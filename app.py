@@ -90,7 +90,7 @@ app.layout = html.Div([
                                 
                                 html.Div(id='sr-ss'),
                                 
-                                html.H1('BeeHaive', style={'textAlign': 'center','font-family':'Bahnschrift'}),
+                                html.H1('BeehAIve', style={'textAlign': 'center','font-family':'Bahnschrift'}),
                                 
                                 html.P("""This tool serves to visualize and analyze records of uniquely identified bees at the entrance to the colony. Its purpose is to
                                 facilitate analysis to biologists and beekeepers unfamiliar with data science and programming.
@@ -137,10 +137,11 @@ app.layout = html.Div([
             html.Hr(),
         
             dcc.Loading(
-                id="loading",
+                id="loading-main",
                 type="circle",
                 children=html.Div(id="output-data"),
-                style={"margin-top":"20px"}
+                style={"margin-top":"20px"},
+                target_components ={"output-data": "children"}
             ),
             dcc.Store(id='stored-data', storage_type='session'),
         
@@ -284,7 +285,13 @@ def display_app(flights, activity, all_flights):
                         
                         ])
                         ),
-                        html.Div(id="individual-chronogram"),
+                        dcc.Loading(
+                            id="loading-individual",
+                            type="circle",
+                            children=html.Div(id="individual-chronogram"),
+                            style={"margin-top":"40px"},
+                            target_components ={"individual-chronogram": "children"}
+                        ),
                         html.Div(id="individual-bee")                        
                         ],style={'display': 'flex', 'flexDirection': 'column'}),										
 					],style={'font-size':'24px'}, selected_style={'font-size':'24px','font-weight':'bold','backgroundColor': '#007bff', 'color': 'white'}),
@@ -294,7 +301,14 @@ def display_app(flights, activity, all_flights):
 					dcc.Tab(label='Hive Data', children=[
                         html.Div([
                         
-                        html.Div(id='chronogram-all'),              
+                        
+                        dcc.Loading(
+                            id="loading-all",
+                            type="circle",
+                            children=html.Div(id="chronogram-all"),
+                            style={"margin-top":"40px"},
+                            target_components ={"chronogram-all": "children"}
+                        ),             
                         
                         dbc.Card(
                         dbc.CardBody([
@@ -562,7 +576,35 @@ def displayChronogramAll(srss, data, activity):
     flights_mod = separateFlights(flights)
     fig = createActoGraphAll(flights_mod,dt)
     
-    return [dcc.Graph(figure=fig)]
+    return [html.Div([dcc.Graph(figure=fig, id="chronogram-all-graph"), html.Div(id="hover-output"), dcc.Store(id='flights-mod', data=flights_mod.to_dict('records')), html.Hr()])]
+    
+    
+#function to display hover on chronogram
+
+@app.callback(Output('hover-output', 'children'),
+                Input('chronogram-all-graph', 'hoverData'),
+                State('flights-mod', 'data'))
+def update_on_hover(data, flights):
+    if data is None:
+        return ""
+        
+        
+    flight = pd.DataFrame(flights)
+        
+    point = data['points'][0]
+    x_val = point.get('x')
+    y_val = point.get('y')
+    
+    flight['tripStart'] = pd.to_datetime(flight['tripStart'], format='mixed') 
+    flight['tripEnd'] = pd.to_datetime(flight['tripEnd'], format='mixed') 
+    
+    flight_sub = flight[(flight['tripStart'] <= x_val) & (flight['tripEnd'] >= x_val) & (flight['date'] == y_val)]
+    bees = len(flight_sub)
+    
+    
+    
+    return dbc.Card(dbc.CardBody([html.P(f"Bees:{bees}")]),style={'margin':'auto', 'text-align':'center','width':'30%'})
+     
 
 
 #function to display graphs when bee is selected

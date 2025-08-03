@@ -196,14 +196,24 @@ def addShapes(fig, night_day_dataset, dataset):
     
 def createActoGraphAll(dataset, dt):
 
+
     dataset = dataset.sort_values(by='date')
     bees = len(dataset['tagID'].unique())
     if bees > 100:
         transparency = 1/bees * (bees/100 + 1) * 2
+        
+        if bees > 200:
+            ticks = np.arange(0,bees+1,(bees/(bees/50)))
+        else:
+            ticks = np.arange(0,bees+1,(bees/(bees/25)))
     elif bees > 50:
         transparency = 1/bees * (bees/50 + 1) * 2
+        ticks = np.arange(0,bees+1,(bees/(bees/15)))
     else:
         transparency = 1/bees * 1.5
+        ticks = np.arange(0,bees+1,(bees/(bees/10)))
+        
+    
     fig = px.timeline(dataset, x_start="tripStart", x_end="tripEnd",y="date", title="Flights Over Time")
     fig.update_traces(
         marker_line_color='rgba(255, 0, 0, 0)',   
@@ -281,14 +291,14 @@ def createActoGraphAll(dataset, dt):
                 ), 
                 len=0.7,            
                 thickness=10,
+                tickvals=ticks
             )
         ),
         showlegend=False  
     ))
     
     
-    fig.update_traces(hoverinfo="skip", hovertemplate=None)
-    
+    fig.update_traces(hovertemplate='Date: %{y}')
     
     return fig
        
