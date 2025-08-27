@@ -1,6 +1,6 @@
 #imports
 
-from dash import Dash, dash_table, dcc, html, Input, Output, callback, State
+from dash import Dash, dash_table, dcc, html, Input, Output, callback, State, clientside_callback
 import dash_daq as daq
 
 
@@ -28,8 +28,11 @@ from graphing import getSRSS, separateFlights, addShapes, createActoGraphAll, fl
 
 #app creation
 
+
 external_stylesheets = [dbc.themes.BOOTSTRAP,'https://codepen.io/chriddyp/pen/bWLwgP.css']
-app = Dash(__name__, external_stylesheets=external_stylesheets,suppress_callback_exceptions=True)
+app = Dash(__name__,requests_pathname_prefix='/beeapp/', routes_pathname_prefix='/beeapp/',external_stylesheets=external_stylesheets,suppress_callback_exceptions=True,)
+#app = Dash(__name__, external_stylesheets=external_stylesheets,suppress_callback_exceptions=True)
+app.title = "BeehAIve"
 server = app.server
 
 #constants
@@ -40,57 +43,20 @@ tzf = TimezoneFinder()
 
 app.layout = html.Div([
 
-
-        html.Div([
-        
-            dbc.Button("How To Use", id="open", n_clicks=0,style={'border-bottom':'1px dashed'}),
-        
-        
-                dbc.Modal(
-                [
-                    dbc.ModalHeader(dbc.ModalTitle("Instructions")),
-                    dbc.ModalBody([
-                    html.P("Dash Instructions"),
-            
-            
-                    html.Ul(children=[
-                                            html.Li("Individual Bee Data: Select a bee tag from the dropdown to view data visualizations associated with that bee."),
-                                            html.Li("Hive Data: Search for tags or values in empty block above values labeled 'Search..' in first table to filter table display."),
-                                            html.Li("Date Range: Select an initial and final date to narrow down the data displayed to a desired date range."),
-                                            html.Li("Accessing the Chronogram: Enter latitude and longitude of your desired location to display chronogram with sunrise/sunset display.")
-
-                                        ],style={'list-style-type':'square','font-size':'12px'}),
-                                        
-                                        
-                    html.P("Visualization Instructions"),
-                    
-                    html.Ul(children=[
-                                            html.Li("Hover over the objects in the visualization to display details. (Chronogram for all bees does not contain this function.)"),
-                                            html.Li("Drag and drop on visualization to zoom in desired region."),
-                                            html.Li("Click home icon to reset zoom to default."),
-                                            html.Li("Click camera icon to save a static version of the visualization to computer."),
-
-
-                                        ],style={'list-style-type':'square', 'font-size':'12px'}),
-                                             
-                    ]),
-                    dbc.ModalFooter(
-                        dbc.Button("Close", id="close", className="ms-auto", n_clicks=0)
-                    ),
-            ],
-            id="modal",
-            is_open=False,
-            )
-        ], id="instructions-modal", style={'padding-top':'5px'}),
+         html.Div([
         
          html.Div([
+         
+                                html.Div([
+                                    html.H1("BeehAIve",style={'font-family':'Bahnschrift','textAlign': 'center','padding':'2vh', 'backgroundColor':'rgba(255, 255, 255,0.5)'}),
+                                ], style={'backgroundImage': 'url("/beeapp/assets/hex.jpg")','backgroundRepeat':'repeat','width':'95.5%','height':'10vh','backgroundSize': 'auto','border':'1px black solid','-webkit-text-stroke': '1px white'}),
          
              html.Div([
                                 html.Div([
                                 
                                 html.Div(id='sr-ss'),
                                 
-                                html.H1('BeehAIve', style={'textAlign': 'center','font-family':'Bahnschrift'}),
+                                
                                 
                                 html.P("""This tool serves to visualize and analyze records of uniquely identified bees at the entrance to the colony. Its purpose is to
                                 facilitate analysis to biologists and beekeepers unfamiliar with data science and programming.
@@ -102,36 +68,58 @@ app.layout = html.Div([
 
                                 ],style={'list-style-type':'square'}),
                                                                
+                                html.P("Dash Instructions",style={'fontWeight':'bold'}),
+                        
+                        
+                                html.Ul(children=[
+                                                        html.Li("Individual Bee Data: Select a bee tag from the dropdown to view data visualizations associated with that bee."),
+                                                        html.Li("Hive Data: Search for tags or values in empty block above values labeled 'Search..' in Summary Table to filter table display."),
+                                                        html.Li("Date Range: Select an initial and final date to narrow down the data displayed to a desired date range."),
+                                                        html.Li("Accessing the Chronogram: Enter latitude and longitude of your desired location in Chronogram to display chronogram with sunrise/sunset display.")
+
+                                                    ],style={'list-style-type':'square','font-size':'12px'}),
+                                                    
+                                                    
+                                html.P("Visualization Instructions",style={'fontWeight':'bold'}),
                                 
+                                html.Ul(children=[
+                                                        html.Li("Hover over the objects in the visualization to display details."),
+                                                        html.Li("Drag and drop on visualization to zoom in desired region."),
+                                                        html.Li("Click home icon to reset zoom to default."),
+                                                        html.Li("Click camera icon to save a static version of the visualization to computer."),
+
+
+                                                    ],style={'list-style-type':'square', 'font-size':'12px'}),
+
                                 html.P("Upload a csv file to begin visualizing."),
-                                
-                                
-                                html.Hr(),
-                                
-                                html.P("Contact here: laeticiaaucerius@gmail.com", style={'font-size':'10px', 'padding-right':'30px'}),
 
                                 
-                                ], style={'padding-top':'10px','padding-right':'30px'}),                      
+                                ], style={'padding-top':'10px','padding-right':'30px'},className="landing-text"),                      
                                 
-                                html.Img(src="https://cdn.pixabay.com/photo/2021/03/27/05/13/bee-6127510_1280.jpg",style={'width':'80%','border-radius': '10px', 'margin':'auto'}),
+                                html.Img(src="https://cdn.pixabay.com/photo/2021/03/27/05/13/bee-6127510_1280.jpg",style={'border-radius': '10px','padding':'1%','margin':'auto'},className="logo-image"),
                                 
                                                                  
-             ], style={'display': 'flex', 'flexDirection': 'row'}),
+             ], style={'display': 'flex'},className="landing"),
         ], id='landing-page', style={'width':'100%', 'padding-right':'10px', 'height':'100%'}),
-                        
-        html.Div([
+            
+
+        html.Div(children=[
         
-            html.Div([
-            html.Div(id="latlonInput"),
-            html.Div(style={'width':'25px'}),
-            dcc.Upload(
+        html.Div(id='how-to-use'),
+        dcc.Upload(
                                         id='upload-csv',
                                         children=html.Button("Upload CSV"),
                                         multiple=True,
-                                        style={'padding-top':'35%'}
+                                        style={'padding-left':'10px','padding-top':'5px'}
                                     ),
-            html.Div(style={'width':'25px'}),
-            html.Div(id="dateSelector"),  
+        ],style={'display':'flex','flexDirection':'row'}),
+        html.Div([
+        
+        
+            html.Div(id="logo-title"),
+            
+            html.Div([
+            html.Div(id="dateSelector"),            
             ],style={'display':'flex','flexDirection':'row','align-items': 'center','justify-content': 'center', 'background-color':'white'}),
             
             html.Hr(),
@@ -144,11 +132,16 @@ app.layout = html.Div([
                 target_components ={"output-data": "children"}
             ),
             dcc.Store(id='stored-data', storage_type='session'),
+            
         
-        ], style={'width':'100%', 'display': 'flex', 'flexDirection': 'column','margin-top':'20px'})
+        ], style={'width':'100%', 'display': 'flex', 'flexDirection': 'column','margin-top':'20px'}),
+
+],style={'marginRight': '20px', 'marginLeft': '20px', 'fontFamily': 'Arial, sans-serif'}),
 
 
-],style={'marginRight': '20px', 'marginLeft': '20px', 'fontFamily': 'Arial, sans-serif'})
+html.Footer(children=[html.P("Contact here: laeticiaaucerius@gmail.com", style={'font-size':'10px', 'padding-right':'30px'}),])
+        
+])
 
 
 
@@ -228,6 +221,8 @@ def display_app(flights, activity, all_flights):
     flight = pd.DataFrame(flights)
     allActivity = pd.DataFrame(activity)
     
+    global is_vertical
+    
     flight['tripStart'] = pd.to_datetime(flight['tripStart'], format='mixed') 
     flight['tripEnd'] = pd.to_datetime(flight['tripEnd'], format='mixed') 
     flight['duration'] = flight['tripEnd'] - flight['tripStart']
@@ -264,167 +259,348 @@ def display_app(flights, activity, all_flights):
     #print(type(beeSummary['tagID'].iloc[0]))
 
     return html.Div([
-    dcc.Tabs([
-										                   
+                dcc.Tabs([
+                    dcc.Tab(label='Individual Bee Data', children=[
                     
-					dcc.Tab(label='Individual Bee Data', children=[
-                    
-					
-                    html.Div([   
-                        
-                        dbc.Card(
-                        dbc.CardBody([
-                        html.P("Select bee tag."),
-                        dcc.Dropdown(
-                            options=selectBee,
-                            #options=['55','66'],
-                            placeholder="Select individual tag",
-                            id="dropdown-bee",
-                            multi=False,
-                            searchable=True),
-                        
-                        ])
-                        ),
-                        dcc.Loading(
-                            id="loading-individual",
-                            type="circle",
-                            children=html.Div(id="individual-chronogram"),
-                            style={"margin-top":"40px"},
-                            target_components ={"individual-chronogram": "children"}
-                        ),
-                        html.Div(id="individual-bee")                        
-                        ],style={'display': 'flex', 'flexDirection': 'column'}),										
-					],style={'font-size':'24px'}, selected_style={'font-size':'24px','font-weight':'bold','backgroundColor': '#007bff', 'color': 'white'}),
-                    
-                    
-											
-					dcc.Tab(label='Hive Data', children=[
                         html.Div([
-                        
-                        
-                        dcc.Loading(
-                            id="loading-all",
-                            type="circle",
-                            children=html.Div(id="chronogram-all"),
-                            style={"margin-top":"40px"},
-                            target_components ={"chronogram-all": "children"}
-                        ),             
-                        
-                        dbc.Card(
-                        dbc.CardBody([
-                        
-                            dash_table.DataTable(
-                            id='datatable',
-                            columns=[
-                                {"name": str(i), "id": str(i)} for i in beeSummary.columns
-                            ],
-                            data=beeSummary.to_dict('records'),
-                            page_action="native",
-                            filter_action="native",
-                            page_current= 0,
-                            page_size= 10,
-                            style_table={'overflowX': 'auto','padding-left': '1px'},
-                            style_data={
-                                'width': '150px', 'minWidth': '150px', 'maxWidth': '250px',
-                                
-                            },
-                            filter_options={
-                               'placeholder_text': 'Search...',
-                               'case': 'insensitive'
-                            },
-                            style_data_conditional=[
-                                {
-                                    'if': {'row_index': 'odd'},
-                                    'backgroundColor': 'rgb(240, 240, 240)',
-                                }
-                            ],
-                            ),
-                       ]))
-                        
-                        
-                        ],style={'display': 'flex', 'flexDirection': 'column'}),
-                        
-                        html.Hr(),
-                        
-                  
-                        html.Div([
-                                
+                            
+                            html.Div([
                             dbc.Card(
                             dbc.CardBody([
-                            dash_table.DataTable(
-                            id='datatable-sum0',
-                            columns=[
-                                {"name": str(i), "id": str(i)} for i in Summary0.columns
-                            ],
-                            data=Summary0.to_dict('records'),
-                            page_action="native",
-                            style_table={'overflowX': 'auto','padding-left': '10px','padding-right':'10px'},
-                            ),
+                            html.P("Select bee tag."),
+                            dcc.Dropdown(
+                                options=selectBee,
+                                #options=['55','66'],
+                                placeholder="Select individual tag",
+                                id="dropdown-bee",
+                                multi=False,
+                                searchable=True),
                             
-                            ])),
+                            ]),style={'width':'100%'}),
                             
                             dbc.Card(
                             dbc.CardBody([
-                            dash_table.DataTable(
-                            id='datatable-sum1',
-                            columns=[
-                                {"name": str(i), "id": str(i)} for i in Summary1.columns
-                            ],
-                            data=Summary1.to_dict('records'),
-                            page_action="native",
-                            style_table={'overflowX': 'auto','padding-left': '10px', 'padding-right':'10px', 'padding-top':'15px'},
-                            )
+                            html.P("Select second bee tag."),
+                            dcc.Dropdown(
+                                options=selectBee,
+                                #options=['55','66'],
+                                placeholder="Select individual tag",
+                                id="dropdown-bee2",
+                                multi=False,
+                                searchable=True),
                             
-                            ])),
+                            ]),style={'width':'100%'}),
+                            ],style={'display':'flex','width':'95.5%','backgroundImage': 'url("/beeapp/assets/hex.jpg")','backgroundRepeat':'repeat'},className="bee-selection"),
                             
+                            dcc.Tabs(
+                                vertical=True,
+                                children=[
+                                     dcc.Tab(className="custom-tab", selected_className="selected",label='Flights at Time of Day', children=[
+                                     
+                                     
+                                     html.Div([
+                                     
+                                         html.Div(id='fig1',children=[
+                                         
+                                         
+                                         html.P("Select a bee to begin visualizing.",style={'padding-top':'10px'})
+                                         
+                                         ],style={'width': '100%','height':'80vh','backgroundColor':'white','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'}),
+                                         html.Div(id='fig1_',children=[
+                                         
+                                         html.P("Select a second bee to compare.",style={'padding-top':'10px'})
+                                         
+                                         ],style={'backgroundColor':'#feffe3','width': '100%','height':'80vh','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'})
+                                         
+                                     ],style={'display':'flex'},className="double-display")
+                                     
+                                     ]),
+                                     dcc.Tab(className="custom-tab", selected_className="selected",label='Flights per Day', children=[
+                                     
+                                     
+                                     html.Div([
+                                     
+                                         html.Div(id='fig2',children=[
+                                         
+                                         
+                                         html.P("Select a bee to begin visualizing.",style={'padding-top':'10px'})
+                                         
+                                         ],style={'width': '100%','height':'80vh','backgroundColor':'white','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'}),
+                                         html.Div(id='fig2_',children=[
+                                         
+                                         html.P("Select a second bee to compare.",style={'padding-top':'10px'})
+                                         
+                                         ],style={'backgroundColor':'#feffe3','width': '100%','height':'80vh','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'})
+                                         
+                                     ],style={'display':'flex'},className="double-display")
+                                     
+                                     
+                                     
+                                     
+                                     ]),
+                                     dcc.Tab(className="custom-tab", selected_className="selected",label='Flight Duration per Day', children=[
+                                     
+                                     html.Div([
+                                     
+                                         html.Div(id='fig3',children=[
+                                         
+                                         
+                                         html.P("Select a bee to begin visualizing.",style={'padding-top':'10px'})
+                                         
+                                         ],style={'width': '100%','height':'80vh','backgroundColor':'white','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'}),
+                                         html.Div(id='fig3_',children=[
+                                         
+                                         html.P("Select a second bee to compare.",style={'padding-top':'10px'})
+                                         
+                                         ],style={'backgroundColor':'#feffe3','width': '100%','height':'80vh','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'})
+                                         
+                                     ],style={'display':'flex'},className="double-display")
+                                     
+                                     
+                                     
+                                     ]),
+                                     dcc.Tab(className="custom-tab", selected_className="selected",label='Flights at Time and Date', children=[
+                                     
+                                     
+                                     html.Div([
+                                     
+                                         html.Div(id='fig4',children=[
+                                         
+                                         
+                                         html.P("Select a bee to begin visualizing.",style={'padding-top':'10px'})
+                                         
+                                         ],style={'width': '100%','height':'80vh','backgroundColor':'white','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'}),
+                                         html.Div(id='fig4_',children=[
+                                         
+                                         html.P("Select a second bee to compare.",style={'padding-top':'10px'})
+                                         
+                                         ],style={'backgroundColor':'#feffe3','width': '100%','height':'80vh','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'})
+                                         
+                                     ],style={'display':'flex'},className="double-display")
+                                     
+                                     
+                                     
+                                     ]),
+                                     dcc.Tab(className="custom-tab", selected_className="selected",label='Chronogram', children=[
+                                     
+                                     
+                                     html.Div([
+                                                   html.P("Input latitude and longitude:",style={'color':'white'}),
+                                                                    
+                                                                    dcc.Input(
+                                                                    id="lat2", type="number",
+                                                                    placeholder="Latitude",
+                                                                    value=None
+                                                                    ),
+                                                                    dcc.Input(
+                                                                    id="lon2", type="number",
+                                                                    placeholder="Longitude",
+                                                                    value=None
+                                                                    ),
+                                            ], style={'width':'100%','padding-top':'10px', 'padding-left':'10px','backgroundColor':'#301808','padding-bottom':'10px'}),
+                                            
+                                            
+                                     html.Div([
+                                            html.Div(id='individual-chronogram',children=[html.P("Select a bee to begin visualizing.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'white'}),
+                                            html.Div(id='individual-chronogram2',children=[html.P("Select a second bee to compare.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'#feffe3'}),
+                                     
+                                     ],style={'display':'flex','height': '80vh'},className="double-display")
+                                     ]),
+                                     
+                                ],className="vertical-tabs")                        
+                            ],style={'display': 'flex','flexDirection': 'column','backgroundImage': 'url("/beeapp/assets/hex.jpg")','backgroundRepeat':'repeat'},className="background-image"),										
+                        ],style={'font-size':'24px','backgroundColor':'#feffe3'}, selected_style={'font-size':'24px','font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                         
-
-                            ], id='tables', style={'display': 'flex', 'flexDirection': 'row', 'flex-wrap': 'nowrap','justify-content': 'space-between'}),
-                            
-                        html.Hr(),
-                            
+                        
+                    dcc.Tab(label="Hive Data", children=[
+                    
                         html.Div([
-                                
-                                    dcc.Graph(figure = density,config={'responsive': True},style={'width': '100vh'}),
-                                    dcc.Graph(figure = length,config={'responsive': True},style={'width': '100vh'}),
-
-                                ], id='heatmaps', style={'display': 'flex', 'flexDirection': 'row', "width": "100%",'height': '100vh'}),
-                                
-                       html.Div([
-                       
-                        dcc.Graph(figure=cluster1, config={'responsive': True}, style={'width':'100vh'}),
-                        dcc.Graph(figure=cluster2, config={'responsive': True}, style={'width':'100vh'})
-                       
-                       ], id='clusters', style={'display': 'flex', 'flexDirection': 'row', "width": "100%",'height': '100vh'}),
-                       
-                       
-                            
-                        html.H5("Tendencies of full timeframe."),
-                            
-                        html.Div([
-                                
-                                    dcc.Graph(figure = beeMin,style={'width': '100vh'}),
-                                    dcc.Graph(figure = beeSum,style={'width': '100vh'}),
-
-                                ], id='analysis', style={'display': 'flex', 'flexDirection': 'row', "width": "100%",'height': '100vh'}),                           
-
-
-                        html.Div([
-                                
-                                    dcc.Graph(figure = beeMinTime,style={'width': '100vh'}),
-                                    dcc.Graph(figure = beeSumTime,style={'width': '100vh'}),
-
-                                ], id='analysis', style={'display': 'flex', 'flexDirection': 'row', "width": "100%",'height': '100vh'})  
-    
-                                      
-
+                        
+                        dcc.Tabs(vertical=True, children=[
                         
                         
-                    ], style={'font-size':'24px'}, selected_style={'font-weight':'bold','font-size':'24px','backgroundColor': '#007bff', 'color': 'white'})
-																			
-			], style={'position': 'sticky', 'z-index': '100', 'top': '0'})
-      ],style={'padding-left':'20px','padding-right':'20px'})
-            
+                                dcc.Tab(className="custom-tab", selected_className="selected",label="Summary Table", children=[
+                                
+                                
+                                dbc.Card(
+                                dbc.CardBody([
+                                    html.P("General summary of all bees in dataset including data such as longest and shortest flight.")
+                                ]),style={'padding':'1%'},className="cards"),
+                                
+                                dbc.Card(
+                                dbc.CardBody([
+                                    html.Div([
+
+                                        dash_table.DataTable(
+                                        id='datatable',
+                                        columns=[
+                                            {"name": str(i), "id": str(i)} for i in beeSummary.columns
+                                        ],
+                                        data=beeSummary.to_dict('records'),
+                                        page_action="native",
+                                        filter_action="native",
+                                        page_current= 0,
+                                        page_size= 10,           
+                                        style_table={'position':'relative','width':'100%','overflowX': 'auto'},
+                                        filter_options={
+                                           'placeholder_text': 'Search...',
+                                           'case': 'insensitive'
+                                        },
+                                        style_data_conditional=[
+                                            {
+                                                'if': {'row_index': 'odd'},
+                                                'backgroundColor': 'rgb(240, 240, 240)',
+                                            }
+                                        ],
+                                        )
+                                        ],style={'width':'90%','margin':'auto'})
+                                ]),style={'padding-top':'5vh'},className="cards")        
+                                ]),
+                                    
+                                dcc.Tab(className="custom-tab", selected_className="selected",label="General Summary",children=[
+                                    
+                                html.Div([
+                                dbc.Card(
+                                dbc.CardBody([
+                                    html.P("Statistical summary of all flights in the dataset.")
+                                ]),style={'padding':'1%'},className="cards"),
+                                  html.Div([
+                                            
+                                        dbc.Card(
+                                        dbc.CardBody([
+                                        dash_table.DataTable(
+                                        id='datatable-sum0',
+                                        columns=[
+                                            {"name": str(i), "id": str(i)} for i in Summary0.columns
+                                        ],
+                                        data=Summary0.to_dict('records'),
+                                        page_action="native",
+                                        style_table={'overflowX': 'auto','padding-left': '15px','padding-right':'10px'},
+                                        ),
+                                        
+                                        ])),
+                                        
+                                        
+                                        dbc.Card(
+                                        dbc.CardBody([
+                                        dash_table.DataTable(
+                                        id='datatable-sum1',
+                                        columns=[
+                                            {"name": str(i), "id": str(i)} for i in Summary1.columns
+                                        ],
+                                        data=Summary1.to_dict('records'),
+                                        page_action="native",
+                                        style_table={'overflowX': 'auto','padding-left': '15px', 'padding-right':'10px', 'padding-top':'15px'},
+                                        )
+                                        
+                                        ])),
+                                        
+                                        
+                                        ], id="tables",style={'display': 'flex','flexDirection':'column'},className="cards"),
+                                    
+                                    
+                                    ],style={'height':'80vh'})
+                                    
+                                    ]),
+                                    
+                                    dcc.Tab(className="custom-tab", selected_className="selected",label="Flights at Time of Day",children=[
+                                    
+                                        dbc.Card(
+                                        dbc.CardBody([
+                                         dcc.Graph(figure = density,config={'responsive': True},style={'width': '100%'}),
+                                         
+                                        ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards")
+                                         
+                                    ]),
+                                    dcc.Tab(className="custom-tab", selected_className="selected",label="Duration of Flights at Time of Day",children=[
+                                    
+                                        dbc.Card(
+                                        dbc.CardBody([
+                                        dcc.Graph(figure = length,config={'responsive': True},style={'width': '100%'})
+                                        ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards"),
+                                    ]),
+                                    dcc.Tab(className="custom-tab", selected_className="selected",label="Clustering for Time of Day and Flight Duration",children=[
+                                        dbc.Card(
+                                        dbc.CardBody([
+                                        
+                                        dcc.Graph(figure=cluster1, config={'responsive': True}, style={'width':'100%'})
+                                        
+                                        ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards"),
+                                    ]),
+                                    dcc.Tab(className="custom-tab", selected_className="selected",label="Clustering for Flight Duration and Age",children=[
+                                        dbc.Card(
+                                        dbc.CardBody([
+                                        
+                                        dcc.Graph(figure=cluster2, config={'responsive': True}, style={'width':'100%'})
+                                        
+                                        ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards"),
+                                    ]),
+                                    dcc.Tab(className="custom-tab", selected_className="selected",label="Relationship Between Time Passed and Flight Duration",children=[
+                                    
+                                    dbc.Card(
+                                    dbc.CardBody([
+                                    html.Div([
+                                            dcc.Graph(figure = beeMin,style={'height':'70vh'},className="double-graph"),
+                                            dcc.Graph(figure = beeMinTime,style={'height':'70vh'},className="double-graph"),
+                                            
+                                            
+                                    ], style={'display': 'flex','width': '100%'},className="double-display"),
+                                    
+                                    ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards"),
+                                    
+                                    ]),
+                                    dcc.Tab(className="custom-tab", selected_className="selected",label="Relationship Between Time Passed and Average Number of Flights", children=[
+                                    
+                                    
+                                    dbc.Card(
+                                    dbc.CardBody([
+                                    html.Div([
+                                            dcc.Graph(figure = beeSum,style={'height':'70vh'},className="double-graph"),
+                                            dcc.Graph(figure = beeSumTime,style={'height':'70vh'},className="double-graph")
+                                            
+                                    ],style={'display': 'flex','width':'100%'},className="double-display")
+                                    
+                                    ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards"),
+                                    
+                                    ]),
+                                    
+                                    dcc.Tab(className="custom-tab", selected_className="selected",label="Chronogram", children=[
+                                    
+                                    html.Div([
+                                           html.P("Input latitude and longitude:",style={"color":"white"}),
+                                                            
+                                                            dcc.Input(
+                                                            id="lat", type="number",
+                                                            placeholder="Latitude",
+                                                            value=None
+                                                            ),
+                                                            dcc.Input(
+                                                            id="lon", type="number",
+                                                            placeholder="Longitude",
+                                                            value=None
+                                                            ),
+                                    ], style={'padding-top':'10px','padding-left':'10px','backgroundColor':'#301808','padding-bottom':'10px','width':'66.8vw'}),
+                                    
+                                    dbc.Card(
+                                    dbc.CardBody([
+                                   
+                                    html.Div(id="chronogram-all",children=[html.P("Input coordinates to display chronogram.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '60vw','height':'80vh'}),
+                                    
+                                    html.Div(id="hover-output"),
+                                    
+                                    ]),style={'height':'100vh','margin-top':'5vh','margin-left':'5%'},className="cards"),
+                                    
+                                    ]),       
+                                                                       
+                                    ],className="vertical-tabs"),
+                                    
+                                    ],style={'backgroundImage': 'url("/beeapp/assets/hex.jpg")','backgroundRepeat':'repeat'},className="background-image")
+                                    
+                               ],style={'font-size':'24px','backgroundColor':'#feffe3'}, selected_style={'font-size':'24px','font-weight':'bold','backgroundColor': '#301808', 'color': 'white'})
+                    
+                    ], style={'width':'100%'})
+                        
+                    ],style={})
 
 # display data from csv after processing
 @app.callback([Output('output-data', 'children'),
@@ -463,7 +639,7 @@ def select_date(data):
     
     
     return html.Div([
-           html.P("Select date range:"),
+           html.P("Select date range to subset the data:"),
            dcc.DatePickerRange(
                     id='my-date-picker-range',
                     min_date_allowed=date(mindate.year, mindate.month, mindate.day),
@@ -472,33 +648,73 @@ def select_date(data):
                     initial_visible_month=date(mindate.year, mindate.month, mindate.day),
                     end_date=date(maxdate.year, maxdate.month, maxdate.day)
     ),
-    ], style={'margin-top':'10px','padding-top':'10px'})
-    
+    ], style={'padding-top':'10px'})
 
-@app.callback(Output('latlonInput', 'children'),
+
+@app.callback(Output('logo-title', 'children'),
                Input('activity','data'),
                prevent_initial_call=True)
-def select_latlon(data):
+def select_date(data):
     if data is None:
         return None
     
+    
     return html.Div([
-           html.P("Input latitude and longitude:"),
-                            
-                            dcc.Input(
-                            id="lat", type="number",
-                            placeholder="Latitude",
-                            value=None
-                            ),
-                            dcc.Input(
-                            id="lon", type="number",
-                            placeholder="Longitude",
-                            value=None
-                            ),
-    ], style={'margin-top':'10px','padding-top':'10px'})
+           html.H1("BeehAIve",style={'font-family':'Bahnschrift','textAlign': 'center','padding':'10vh', 'backgroundColor':'rgba(255, 255, 255,0.5)'}),
+    ], style={'backgroundImage': 'url("/beeapp/assets/hex.jpg")','backgroundRepeat':'repeat','width':'95.5%','height':'30vh','backgroundSize': 'auto','border':'1px black solid','-webkit-text-stroke': '1px white'})
 
 
 
+
+
+@app.callback(Output('how-to-use', 'children'),
+               Input('activity','data'),
+               prevent_initial_call=True)
+def show_instructions(data):               
+    if data is None:
+        return None    
+               
+    return html.Div([
+        
+            dbc.Button("How To Use", id="open", n_clicks=0,style={'background-color':'#301808'}),
+        
+        
+                dbc.Modal(
+                [
+                    dbc.ModalHeader(dbc.ModalTitle("Instructions")),
+                    dbc.ModalBody([
+                    html.P("Dash Instructions"),
+            
+            
+                    html.Ul(children=[
+                                            html.Li("Individual Bee Data: Select a bee tag from the dropdown to view data visualizations associated with that bee."),
+                                            html.Li("Hive Data: Search for tags or values in empty block above values labeled 'Search..' in Summary Table to filter table display."),
+                                            html.Li("Date Range: Select an initial and final date to narrow down the data displayed to a desired date range."),
+                                            html.Li("Accessing the Chronogram: Enter latitude and longitude of your desired location in Chronogram to display chronogram with sunrise/sunset display.")
+
+                                        ],style={'list-style-type':'square','font-size':'12px'}),
+                                        
+                                        
+                    html.P("Visualization Instructions"),
+                    
+                    html.Ul(children=[
+                                            html.Li("Hover over the objects in the visualization to display details."),
+                                            html.Li("Drag and drop on visualization to zoom in desired region."),
+                                            html.Li("Click home icon to reset zoom to default."),
+                                            html.Li("Click camera icon to save a static version of the visualization to computer."),
+
+
+                                        ],style={'list-style-type':'square', 'font-size':'12px'}),
+                                             
+                    ]),
+                    dbc.ModalFooter(
+                        dbc.Button("Close", id="close", className="ms-auto", n_clicks=0)
+                    ),
+            ],
+            id="modal",
+            is_open=False,
+            )
+        ], id="instructions-modal", style={'padding-top':'5px'}),
 
 @app.callback(Output('flights', 'data'),
                 Input('my-date-picker-range', 'start_date'),
@@ -552,8 +768,9 @@ def sunrise_sunset(lat, lon, activity):
               Input('sunrise-sunset', 'data'),
               State('flights', 'data'),
               State('activity', 'data'),
+              State('chronogram-all', 'children'),
               prevent_initial_call=True)             
-def displayChronogramAll(srss, data, activity):
+def displayChronogramAll(srss, data, activity, tabs):
 
     #none checks
     if data is None:
@@ -576,7 +793,7 @@ def displayChronogramAll(srss, data, activity):
     flights_mod = separateFlights(flights)
     fig = createActoGraphAll(flights_mod,dt)
     
-    return [html.Div([dcc.Graph(figure=fig, id="chronogram-all-graph"), html.Div(id="hover-output"), dcc.Store(id='flights-mod', data=flights_mod.to_dict('records')), html.Hr()])]
+    return [html.Div([dcc.Graph(figure=fig, id="chronogram-all-graph",style={'width':'100%'}, clear_on_unhover=True), dcc.Store(id='flights-mod', data=flights_mod.to_dict('records'))])]
     
     
 #function to display hover on chronogram
@@ -586,7 +803,7 @@ def displayChronogramAll(srss, data, activity):
                 State('flights-mod', 'data'))
 def update_on_hover(data, flights):
     if data is None:
-        return ""
+        return dbc.Card(dbc.CardBody([html.P(f"Bees:0")]),style={'margin':'auto', 'text-align':'center','width':'30%'})
         
         
     flight = pd.DataFrame(flights)
@@ -595,22 +812,77 @@ def update_on_hover(data, flights):
     x_val = point.get('x')
     y_val = point.get('y')
     
+    
+    
+    
     flight['tripStart'] = pd.to_datetime(flight['tripStart'], format='mixed') 
     flight['tripEnd'] = pd.to_datetime(flight['tripEnd'], format='mixed') 
     
     flight_sub = flight[(flight['tripStart'] <= x_val) & (flight['tripEnd'] >= x_val) & (flight['date'] == y_val)]
     bees = len(flight_sub)
     
-    
-    
     return dbc.Card(dbc.CardBody([html.P(f"Bees:{bees}")]),style={'margin':'auto', 'text-align':'center','width':'30%'})
      
+
+#synchronize lat/lon
+
+#lat
+@app.callback(
+    Output('lat','value'),
+    Input('lat2','value'),
+    State('lat','value'),
+    prevent_initial_call=True)
+def updateLat1(value,value2):
+    if value != value2:    
+        return value
+    raise PreventUpdate
+
+
+
+@app.callback(
+    Output('lat2','value'),
+    Input('lat','value'),
+    State('lat2','value'),
+    prevent_initial_call=True)
+def updateLat2(value,value2):
+    if value != value2:    
+        return value
+    raise PreventUpdate
+    
+#lon
+
+
+@app.callback(
+    Output('lon','value'),
+    Input('lon2','value'),
+    State('lon', 'value'),
+    prevent_initial_call=True)
+def updateLon1(value, value2):
+    if value != value2:    
+        return value
+    raise PreventUpdate
+
+
+
+@app.callback(
+    Output('lon2','value'),
+    Input('lon','value'),
+    State('lon2','value'),
+    prevent_initial_call=True)
+def updateLon2(value, value2):
+    if value != value2:    
+        return value
+    raise PreventUpdate
+    
 
 
 #function to display graphs when bee is selected
 
 @app.callback(
-        Output('individual-bee', 'children'),
+        Output('fig1', 'children'),
+        Output('fig2', 'children'),
+        Output('fig3', 'children'),
+        Output('fig4', 'children'),
         Input('dropdown-bee', 'value'),
         Input('flights', 'data'), 
         prevent_initial_call=True
@@ -634,26 +906,39 @@ def show_individual(bee_id, data):
     fig1, fig2, fig3 = plotHist(bee)
     fig4 = flightDensity(bee)
     
+    return [dcc.Graph(figure = fig1,style={'width': '100%'})], [dcc.Graph(figure = fig2,style={'width': '100%'})], [dcc.Graph(figure = fig3,style={'width': '100%'})], [dcc.Graph(figure = fig4,style={'width': '100%'})]
     
-    return [
-    
-    
-    
-        html.Div([
-                                
-                                    dcc.Graph(figure = fig1,style={'width': '100vh'}),
-                                    dcc.Graph(figure = fig2,style={'width': '100vh'}),
 
-                                ], id='barcharts', style={'display': 'flex', 'flexDirection': 'row', "width": "100%",'height': '100vh'}),  
 
-       html.Div([
-                                
-                                    dcc.Graph(figure = fig3,style={'width': '100vh'}),
-                                    dcc.Graph(figure = fig4,style={'width': '100vh'}),
-
-                                ], id='summary', style={'display': 'flex', 'flexDirection': 'row', "width": "100%",'height': '100vh'}), 
+@app.callback(
+        Output('fig1_', 'children'),
+        Output('fig2_', 'children'),
+        Output('fig3_', 'children'),
+        Output('fig4_', 'children'),
+        Input('dropdown-bee2', 'value'),
+        Input('flights', 'data'), 
+        prevent_initial_call=True
+)
+def show_individual2(bee_id, data):
+    if bee_id is None:
+        return None
+    if data is None:
+        return None
+        
+        
+    flights = pd.DataFrame(data)
+    flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')
+    flights['tripEnd'] = pd.to_datetime(flights['tripEnd'], format='mixed')
+    flights['duration'] = (flights['tripEnd'] - flights['tripStart'])
+    flights['duration'] = flights['duration'].apply(lambda x: x.total_seconds()/60)
+        
+    bee = flights[flights['tagID'] == bee_id].copy()
     
-    ]
+    
+    fig1, fig2, fig3 = plotHist(bee)
+    fig4 = flightDensity(bee)
+    
+    return [dcc.Graph(figure = fig1,style={'width': '100%'})], [dcc.Graph(figure = fig2,style={'width': '100%'})], [dcc.Graph(figure = fig3,style={'width': '100%'})], [dcc.Graph(figure = fig4,style={'width': '100%'})]
     
 
 
@@ -662,8 +947,9 @@ def show_individual(bee_id, data):
               Input('sunrise-sunset', 'data'),
               State('flights', 'data'),
               State('activity', 'data'),
+              State('individual-chronogram', 'children'),
               prevent_initial_call=True)             
-def displayChronogramSingle(beeid, srss, data, activity):
+def displayChronogramSingle(beeid, srss, data, activity, tabs):
 
     #none checks
     if data is None:
@@ -686,9 +972,45 @@ def displayChronogramSingle(beeid, srss, data, activity):
     bee = flights_mod[flights_mod['tagID'] == beeid]
     fig = createActoGraph(bee,dt)
     
-    return [dcc.Graph(figure=fig)]
+    
+    return [dcc.Graph(figure = fig,style={'width':'100%'})]
+    
+    
+@app.callback([Output('individual-chronogram2', 'children')],
+              Input('dropdown-bee2', 'value'),
+              Input('sunrise-sunset', 'data'),
+              State('flights', 'data'),
+              State('activity', 'data'),
+              State('individual-chronogram', 'children'),
+              prevent_initial_call=True) 
+def displayChronogramSingle(beeid, srss, data, activity, tabs):
+
+    #none checks
+    if data is None:
+        raise PreventUpdate
+    if activity is None:
+        raise PreventUpdate
+    if srss is None:
+        raise PreventUpdate
+    if beeid is None:
+        raise PreventUpdate
+        
+        
+    flights = pd.DataFrame(data)
+    flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')
+    flights['tripEnd'] = pd.to_datetime(flights['tripEnd'], format='mixed')
+
+    dt = pd.DataFrame(srss)
+    
+    flights_mod = separateFlights(flights)
+    bee = flights_mod[flights_mod['tagID'] == beeid]
+    fig = createActoGraph(bee,dt)
+    
+    
+    return [dcc.Graph(figure = fig,style={'width':'100%'})]
+
 
 #run app
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

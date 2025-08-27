@@ -1,0 +1,33 @@
+.tab.custom-tab{
+
+	background-color: #feffe3;
+}
+
+.tab.selected{
+
+	font-weight: bold;
+	background-color: #301808;
+	color: white;
+}
+
+.cards{
+		width:60vw;
+		margin:5%;
+	}
+	
+.chrono{
+		width:100%;
+	}
+
+@media screen and (max-width: 768px) {
+	
+	.cards{
+		width:90vw;
+		margin:2vh;
+	}
+	
+	.chrono{
+		width:90vw;
+	}
+
+}

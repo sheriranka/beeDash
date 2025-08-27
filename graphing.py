@@ -322,8 +322,12 @@ def flightDensity(dataset):
         tick_vals = np.arange(0,max_color+1)
     else:
         tick_vals = np.arange(0, max_color+1, max_color//5)    
-    fig = px.imshow(density,title="Number of Flights at Time of Day",color_continuous_scale="brwnyl")
-    
+    if len(df['tagID'].unique()) > 1:
+        fig = px.imshow(density,title="Number of Flights at Time of Day",color_continuous_scale="brwnyl")
+    else:
+        fig = px.imshow(density,title=f"Number of Flights at Time of Day<br>for Bee {df['tagID'].iloc[0]}",color_continuous_scale="brwnyl")
+        
+        
     fig.update_layout(
     xaxis=dict(
         title=dict(
@@ -501,7 +505,7 @@ def linReg(activity, flights):
     countmean = count.groupby(['age']).mean().reset_index()
     
     ##OVERALL LINE FOR AMT OF FLIGHTS AND TIME PASSED
-    beeSum = px.line(countmean, x="age", y="count", title='Relationship Between Time Passed and Average Number of Flights',markers=True)
+    beeSum = px.line(countmean, x="age", y="count", title='Relationship Between Time Passed and<br>Average Number of Flights',markers=True)
     beeSum.update_layout(
     xaxis=dict(
         title=dict(
@@ -527,7 +531,7 @@ def linReg(activity, flights):
     dict0 = {'age':age,'dur':dur} 
     count = pd.DataFrame(dict0).groupby(['age']).mean().reset_index()
     
-    beeMin = px.line(count, x="age", y="dur", title='Relationship Between Time Passed and Average Flight Duration',markers=True)
+    beeMin = px.line(count, x="age", y="dur", title='Relationship Between Time Passed and<br>Average Flight Duration',markers=True)
     beeMin.update_layout(
     xaxis=dict(
         title=dict(
@@ -582,7 +586,7 @@ def linReg(activity, flights):
                                  "<extra></extra>"))
     fig.update_layout(boxmode='group', xaxis_tickangle=0)
 
-    fig.update_layout(title="Relationship Between Time Passed and Average Number of Flights",
+    fig.update_layout(title="Relationship Between Time Passed and<br>Average Number of Flights",
                       yaxis_title="Average Number of Flights per Bee",
                      xaxis_title = "Time Passed Since First Seen (Days)")
                      
@@ -624,7 +628,7 @@ def linReg(activity, flights):
                                  
     fig.update_layout(boxmode='group', xaxis_tickangle=0)
 
-    fig.update_layout(title="Relationship Between Time Passed and Average Flight Duration",
+    fig.update_layout(title="Relationship Between Time Passed and<br>Average Flight Duration",
                       yaxis_title="Average Flight Duration (Minutes)",
                      xaxis_title = "Time Passed Since First Seen (Days)")
     fig.update_layout(title_font_size=12)
@@ -685,9 +689,12 @@ def linReg(activity, flights):
 
 def createActoGraph(dataset, dt):
 
+    dataset = dataset.copy()
     dataset["tripEnd_hover"] = pd.to_datetime(dataset["tripStart"]).dt.strftime("%H:%M:%S")
+    
+    tagID = dataset['tagID'].iloc[0]
 
-    fig = px.timeline(dataset, x_start="tripStart", x_end="tripEnd",y="date", title="Selected Bee's Flights Over Time",custom_data=["tripEnd_hover"])
+    fig = px.timeline(dataset, x_start="tripStart", x_end="tripEnd",y="date", title=f"Bee {tagID}'s Flights Over Time",custom_data=["tripEnd_hover"])
     fig.update_traces(
         marker_line_color="grey",   
         marker_line_width=1          
@@ -753,6 +760,8 @@ def plotHist(dataset):
     dtickH = max(dataset[['hour']].value_counts())//5
     dtickD = max(dataset[['day']].value_counts())//5
     
+    tagID = dataset['tagID'].iloc[0]
+    
     #fig = sns.histplot(dataset, x='hour',bins= (max(dataset['hour']) - min(dataset['hour'])))
     #fig.set_xticks(vals) 
     #fig.set_xticklabels(text)
@@ -782,7 +791,7 @@ def plotHist(dataset):
     )
     
     fig1.update_layout(
-    title = 'Number of Flights at Time of Day',
+    title = f'Number of Flights at Time of Day<br>for Bee {tagID}',
     xaxis=dict(
         title=dict(
             text="Hour"
@@ -814,7 +823,7 @@ def plotHist(dataset):
     
     
     fig2.update_layout(
-    title = 'Number of Flights per Day',
+    title = f'Number of Flights per Day for<br>Bee {tagID}',
     xaxis=dict(
         title=dict(
             text="Date"
@@ -850,7 +859,7 @@ def plotHist(dataset):
                                  
     fig3.update_layout(boxmode='group', xaxis_tickangle=0)
 
-    fig3.update_layout(title="Distribution of Flight Duration per Day",
+    fig3.update_layout(title=f"Distribution of Flight Duration per Day<br>for Bee {tagID}",
                       yaxis_title="Flight Duration (Minutes)",
                      xaxis_title = "Date")
     
