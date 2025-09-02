@@ -394,6 +394,105 @@ def flightLength(dataset):
     #plt.show()
     
     
+def plotClusterTimeDur(activity,flights,clusters):
+    
+    mins = []
+    time = []
+    theTime = []
+    for b in activity['tagID'].unique():
+        #get bee by ID
+        bee = activity[activity['tagID'] == b].copy()
+        beeF = flights[flights['tagID'] == b].copy()
+
+        for index, row in beeF.iterrows():
+            mins.append(row['duration'].total_seconds()/60)
+            time.append(row['timeOfDay'])
+            theTime.append(row['theTime'])
+            
+    dict0 = {'mins':mins,'time':time,'theTime':theTime}     
+
+    dataset = pd.DataFrame(dict0)
+    
+    clusters = min(clusters,len(flights))
+    
+    kmeans = KMeans(n_clusters=clusters, random_state=42)
+    X = dataset[["time", "mins"]] 
+    
+    cluster_labels = kmeans.fit_predict(X)
+    dataset['labels'] = [str(x) for x in cluster_labels]
+    
+    fig1 = px.scatter(dataset, x='theTime',y='mins',color='labels',title="Clustering for Time of Day and Flight Duration")
+    fig1.update_layout(
+    xaxis=dict(
+        title=dict(
+            text="Time of Day"
+        )
+    ),
+    title=dict(
+        font=dict(
+            size=12
+        )
+    ),
+    yaxis=dict(
+        title=dict(
+            text="Flight Duration (minutes)"
+        )
+    )
+    )
+    
+    fig1.update_traces(hovertemplate='Time of Day: %{x} <br>Flight Duration: %{y:.2f}')    
+    return fig1
+    
+def plotClusterDayDur(activity,flights,clusters):
+
+    #new dataset of age
+    age = []
+    mins = []
+    
+    for b in activity['tagID'].unique():
+        #get bee by ID
+        bee = activity[activity['tagID'] == b].copy()
+        beeF = flights[flights['tagID'] == b].copy()
+        firstDay = bee['start'].iloc[0].date()
+
+        for index, row in beeF.iterrows():
+            age.append((row['tripStart'].date() - pd.to_datetime(firstDay).date()).days)
+            mins.append(row['duration'].total_seconds()/60)
+            
+    dict0 = {'mins':mins,'age':age}
+            
+    dataset = pd.DataFrame(dict0)
+    
+    kmeans = KMeans(n_clusters=clusters, random_state=42)
+    X = dataset[["mins","age"]]
+    
+    cluster_labels = kmeans.fit_predict(X)
+    dataset['labels'] = [str(x) for x in cluster_labels]
+    
+    fig2 = px.scatter(dataset, x='age',y='mins',color='labels',title="Clustering for Time Since First Seen and Flight Duration")
+    fig2.update_layout(
+    xaxis=dict(
+        title=dict(
+            text="Days Since First Seen"
+        )
+    ),
+    title=dict(
+        font=dict(
+            size=12
+        )
+    ),
+    yaxis=dict(
+        title=dict(
+            text="Flight Duration (minutes)"
+        )
+    )
+    )
+    
+    fig2.update_traces(hovertemplate='Time Passed: %{x} day(s) <br>Flight Duration: %{y:.2f}')
+    
+    return fig2
+
+
 def plotCluster(activity,flights):
 
     #new dataset of age
@@ -686,6 +785,102 @@ def linReg(activity, flights):
     
 ####INDIVIDUAL BEE STUFF
 
+def beeAverage(dataset, y):
+
+    dataset['hour'] = dataset['tripStart'].apply(lambda x: x.hour)
+    dataset['day'] = dataset['tripStart'].apply(lambda x: x.day)
+    
+    averages = (dataset[['hour']].value_counts()/len(dataset['tagID'].unique())).round(2)
+    hours = dataset['hour'].unique()
+    
+    #hour bar
+    
+    fig1 = px.bar(x=hours,y=averages)
+    
+    vals = list(range(min(dataset['hour']), max(dataset['hour'])+1))
+    text = [(str(xi) + ":00") for xi in vals]
+
+    fig1.update_xaxes(
+    tickvals=vals,               
+    ticktext=text,
+    tickangle=45  
+    )
+    
+    fig1.update_yaxes(
+    tickmode='linear',
+    )
+    
+    fig1.update_layout(
+    title = f'Average Number of Flights at Time of Day<br>for all Bees',
+    xaxis=dict(
+        title=dict(
+            text="Hour"
+        )
+    ),
+    yaxis=dict(
+        title=dict(
+            text="Number of Flights"
+        )
+    )
+    )
+    fig1.update_yaxes(range = [0,y['hour']])
+    fig1.update_traces(hovertemplate='Hour: %{x} <br>Flights: %{y}')
+    fig1.update_traces(marker_color='brown',marker_line_width=1,marker_line_color="white")    
+
+    #day bar
+
+    dataset['date'] = dataset['tripStart'].apply(lambda x: fixDate(x))
+    averages = (dataset[['date']].value_counts()/len(dataset['tagID'].unique())).round(2)
+    dates = dataset['date'].unique()
+    
+    fig2 = px.bar(x=dates, y=averages)
+    
+    
+    fig2.update_layout(
+    title = f'Average Number of Flights per Day<br>for all Bees',
+    xaxis=dict(
+        title=dict(
+            text="Date"
+        )
+    ),
+    yaxis=dict(
+        title=dict(
+            text="Number of Flights"
+        )
+    )
+    )
+    
+    fig2.update_yaxes(
+    tickmode='linear',
+    )
+    
+    fig2.update_yaxes(range = [0,y['date']])
+    fig2.update_traces(marker_color='brown',marker_line_width=1,marker_line_color="white") 
+    fig2.update_traces(hovertemplate='Date: %{x} <br>Flights: %{y}')
+    
+
+    dataset['duration'] = dataset['duration'].apply(lambda x: x.total_seconds()/60).round(2)
+    fig3=go.Figure()
+    fig3.add_trace(go.Box(x=dataset['date'], y=dataset['duration'],
+                                 line=dict(color='black',width=1),
+                                 #line=dict(color=colors[i]),
+                                 fillcolor='brown',
+                                 hovertemplate="<b>Date:</b> %{x}<br>" +
+                                 "<b>Duration: </b>%{y}<br> minutes" +
+                                 "<extra></extra>"))
+                                 
+    fig3.update_layout(boxmode='group', xaxis_tickangle=0)
+
+    fig3.update_layout(title=f"Distribution of Avg Flight Duration per Day<br>for all Bees",
+                      yaxis_title="Flight Duration (Minutes)",
+                     xaxis_title = "Date")
+                     
+    fig3.update_xaxes(
+    tickangle=45  
+    )
+
+
+    return fig1, fig2, fig3
 
 def createActoGraph(dataset, dt):
 
@@ -751,43 +946,68 @@ def createActoGraph(dataset, dt):
     fig.update_traces(hovertemplate='Time Started: %{customdata[0]} <br>Time Ended: %{x}  <br>Date: %{y}')
     return fig
 
+def createActoGraphSub(dataset, dt):
+
+    dataset = dataset.copy()
+    dataset["tripEnd_hover"] = pd.to_datetime(dataset["tripStart"]).dt.strftime("%H:%M:%S")
+    dataset["tripStart_hover"] = pd.to_datetime(dataset["tripEnd"]).dt.strftime("%H:%M:%S")
+    
+    tagID = dataset['tagID'].iloc[0]
+
+    fig = px.timeline(dataset, x_start="tripStart", x_end="tripEnd",y="date", title=f"Tag {tagID}",custom_data=["tripEnd_hover","tripStart_hover"])
+    fig.update_traces(
+        marker_line_color="grey",   
+        marker_line_width=1          
+    )
+    
+    fig.update_xaxes(showgrid=False,showticklabels=False)
+    fig.update_yaxes(showgrid=False)
+    #change tick format to look better
+    fig.update_layout(xaxis=dict(
+                      title='Time', 
+                      tickformat = '%H:%M:%S'),
+                     plot_bgcolor="white")
+    #setup axes
+    fig.update_yaxes(dtick=1)
+    fig.update_yaxes(autorange="reversed",title="Date")
+    vals = dataset['date'].unique()
+    fig.update_yaxes(
+        tickvals=vals
+    )
+    fig.update_traces(marker_color='brown')
+
+    addShapes(fig,dt,dataset)
+
+    
+    fig.update_traces(hovertemplate='Time Started: %{customdata[0]} <br>Time Ended: %{customdata[1]}  <br>Date: %{y}')
+    return fig
+
     
 
-def plotHist(dataset):
+def plotHist(dataset,x,y):
     dataset['hour'] = dataset['tripStart'].apply(lambda x: x.hour)
-    dataset['day'] = dataset['tripStart'].apply(lambda x: x.day)
-    
-    dtickH = max(dataset[['hour']].value_counts())//5
-    dtickD = max(dataset[['day']].value_counts())//5
+    dataset['date'] = dataset['tripStart'].apply(lambda x: fixDate(x))
     
     tagID = dataset['tagID'].iloc[0]
     
-    #fig = sns.histplot(dataset, x='hour',bins= (max(dataset['hour']) - min(dataset['hour'])))
-    #fig.set_xticks(vals) 
-    #fig.set_xticklabels(text)
-    #fig.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-    #plt.title("")
-    #plt.xticks(rotation=30)
-    #fig.set(xlabel='Hour', ylabel='Count of flights')
-    #plt.show()
+    #hour bar
     
+    hour = x['hour']
     
-    #hour histogram
+    averages = dataset['hour'].value_counts().reindex(hour)
     
-    fig1 = px.histogram(dataset, x="hour", nbins=(max(dataset['hour']) - min(dataset['hour']) + 1))
+    fig1 = px.bar(x=hour,y=averages)
     
-    vals = list(range(min(dataset['hour']), max(dataset['hour'])+1))
-    text = [(str(xi) + ":00") for xi in vals]
+    text = [(str(xi) + ":00") for xi in hour]
 
     fig1.update_xaxes(
-    tickvals=vals,               
+    tickvals=hour,               
     ticktext=text,
-    tickangle=30  
+    tickangle=45 
     )
     
     fig1.update_yaxes(
     tickmode='linear',
-    dtick=dtickH
     )
     
     fig1.update_layout(
@@ -803,23 +1023,17 @@ def plotHist(dataset):
         )
     )
     )
+    fig1.update_yaxes(range = [0,y['hour']])
     fig1.update_traces(hovertemplate='Hour: %{x} <br>Flights: %{y}')
     fig1.update_traces(marker_color='brown',marker_line_width=1,marker_line_color="white")    
     
-    #day histogram
+    #day bar
     
+    dates = x['date']
     
-    #fig = sns.histplot(dataset, x='date',bins=(max(dataset['day']) - min(dataset['day'])))
-    #fig.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-    #plt.xticks(dataset['date'].unique())
-    #fig.set(xlabel='Date', ylabel='Count of flights')
-    #plt.title("Number of flights per day")
-    #plt.show()
-
-    dataset['date'] = dataset['tripStart'].apply(lambda x: fixDate(x))
+    averages = dataset['date'].value_counts().reindex(dates,fill_value=0)
     
-    fig2 = px.histogram(dataset, x="date", nbins=((max(dataset['tripStart']) - min(dataset['tripStart'])).days) + 1)
-    
+    fig2 = px.bar(x=dates, y=averages)
     
     
     fig2.update_layout(
@@ -838,14 +1052,11 @@ def plotHist(dataset):
     
     fig2.update_yaxes(
     tickmode='linear',
-    dtick=dtickD
     )
     
+    fig2.update_yaxes(range = [0,y['date']])
     fig2.update_traces(marker_color='brown',marker_line_width=1,marker_line_color="white") 
     fig2.update_traces(hovertemplate='Date: %{x} <br>Flights: %{y}')
-    
-    
-    dataset = dataset.round(2)
     
     
     fig3=go.Figure()
@@ -862,11 +1073,103 @@ def plotHist(dataset):
     fig3.update_layout(title=f"Distribution of Flight Duration per Day<br>for Bee {tagID}",
                       yaxis_title="Flight Duration (Minutes)",
                      xaxis_title = "Date")
+                     
+    fig3.update_xaxes(
+    tickangle=45  
+    )
     
     return fig1, fig2, fig3
     
     
     
     
+def plotProbs(dataset,flights):
+    dataset['hour'] = dataset['tripStart'].apply(lambda x: x.hour)
+    flights['hour'] = flights['tripStart'].apply(lambda x: x.hour)
     
+    tagID = dataset['tagID'].iloc[0]
+    hour = flights['hour'].unique()
+    hour.sort()
+    
+    averages = dataset['hour'].value_counts().reindex(hour, fill_value=0)/len(dataset['hour'])
+    averages = averages.sort_index()
+
+    fig1 = px.bar(x=hour, y=averages)
+    
+    text = [(str(xi) + ":00") for xi in hour]
+
+    if len(dataset['tagID'].unique()) > 1:
+        title = "All Bees"
+    else:   
+        title = f"Bee {tagID}"
+
+    fig1.update_xaxes(
+    tickvals=hour,               
+    ticktext=text,
+    tickangle=45 
+    )
+    fig1.update_layout(
+    title = f'Flight Number Distribution at Time of Day<br>for {title}',
+    xaxis=dict(
+        title=dict(
+            text="Hour"
+        )
+    ),
+    yaxis=dict(
+        title=dict(
+            text="Flight Number Distribution"
+        )
+    )
+    )
+    #fig.update_yaxes(range = [0,1])
+    fig1.update_traces(hovertemplate='Hour: %{x} <br>Flight Distribution: %{y}')
+    fig1.update_traces(marker_color='brown',marker_line_width=1,marker_line_color="white")    
+    
+    cumsum = averages.cumsum().tolist()
+    hour = np.append(hour, hour[-1] + 1)
+    cumsum.append(1)
+
+    fig1.add_trace(go.Scatter(x=hour, y=cumsum, zorder=-1,name='CDF',opacity=0.1, fill='tozeroy',mode= 'none'))
+    #fig1.show()
+    
+    #day density
+
+    dataset['date'] = dataset['tripStart'].apply(lambda x: fixDate(x)) 
+    flights['date'] = flights['tripStart'].apply(lambda x: fixDate(x))
+    dates = flights['date'].unique()
+    dates.sort()
+
+    averages = dataset['date'].value_counts().reindex(dates, fill_value=0)/len(dataset['date'])
+    averages = averages.sort_index()
+
+    fig2 = px.bar(x=dates, y=averages)
+
+    fig2.update_layout(
+    title = f'Flight Number Distribution per Day for<br>{title}',
+    xaxis=dict(
+        title=dict(
+            text="Date"
+        )
+    ),
+    yaxis=dict(
+        title=dict(
+            text="Flight Distribution"
+        )
+    )
+    )
+    
+    #fig.update_yaxes(range = [0,1])
+    fig2.update_traces(marker_color='brown',marker_line_width=1,marker_line_color="white") 
+    fig2.update_traces(hovertemplate='Date: %{x} <br>Flight Distribution: %{y}')
+    
+    cumsum = averages.cumsum().tolist()
+    dates = np.append(dates,'')
+    cumsum.append(1)
+
+    fig2.add_trace(go.Scatter(x=dates, y=cumsum, zorder=-1,name='CDF',opacity=0.1, fill='tozeroy',mode= 'none'))
+
+    #fig2.show()
+    return fig1, fig2
+    
+
     

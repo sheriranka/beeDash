@@ -22,16 +22,16 @@ from dash.exceptions import PreventUpdate
 
 #external files
 
-from flights import classifyLoc, cleanData, summaryData, makeTotalSum
-from graphing import getSRSS, separateFlights, addShapes, createActoGraphAll, flightDensity, flightLength, createActoGraph, plotHist, plotCluster, linReg, fixDate
+from flights import classifyLoc, cleanData, summaryData, makeTotalSum, divideBees, findSimilar
+from graphing import getSRSS, separateFlights, addShapes, createActoGraphAll, flightDensity, flightLength, createActoGraph, plotHist, plotClusterTimeDur, plotClusterDayDur, linReg, fixDate, beeAverage, createActoGraphSub, plotProbs
 
 
 #app creation
 
 
 external_stylesheets = [dbc.themes.BOOTSTRAP,'https://codepen.io/chriddyp/pen/bWLwgP.css']
-app = Dash(__name__,requests_pathname_prefix='/beeapp/', routes_pathname_prefix='/beeapp/',external_stylesheets=external_stylesheets,suppress_callback_exceptions=True,)
-#app = Dash(__name__, external_stylesheets=external_stylesheets,suppress_callback_exceptions=True)
+#app = Dash(__name__,requests_pathname_prefix='/beeapp/', routes_pathname_prefix='/beeapp/',external_stylesheets=external_stylesheets,suppress_callback_exceptions=True,)
+app = Dash(__name__, external_stylesheets=external_stylesheets,suppress_callback_exceptions=True)
 app.title = "BeehAIve"
 server = app.server
 
@@ -49,7 +49,7 @@ app.layout = html.Div([
          
                                 html.Div([
                                     html.H1("BeehAIve",style={'font-family':'Bahnschrift','textAlign': 'center','padding':'2vh', 'backgroundColor':'rgba(255, 255, 255,0.5)'}),
-                                ], style={'backgroundImage': 'url("/beeapp/assets/hex.jpg")','backgroundRepeat':'repeat','width':'95.5%','height':'10vh','backgroundSize': 'auto','border':'1px black solid','-webkit-text-stroke': '1px white'}),
+                                ], style={'backgroundImage': 'url("assets/hex.jpg")','backgroundRepeat':'repeat','width':'100%','height':'10vh','backgroundSize': 'auto','border':'1px black solid','-webkit-text-stroke': '1px white'}),
          
              html.Div([
                                 html.Div([
@@ -174,12 +174,22 @@ def parse_contents(contents, filename, date):
         ndf.columns.values[2] = "event"
         
         #fix datetime from str to datetime       
-        ndf['datetime'] = pd.to_datetime(ndf['datetime'], format='mixed')    
+        ndf['datetime'] = pd.to_datetime(ndf['datetime'], format='mixed')   
+        ndf['tagID'] = ndf['tagID'].apply(lambda x: str(x))
         
         allActivity, flight = cleanData(ndf)
         flight['date'] = flight['tripStart'].apply(lambda x: fixDate(x))
+        flight['hour'] = flight['tripStart'].apply(lambda x: x.hour)
         flight['timeOfDay'] = flight['tripStart'].apply(lambda x: (x.hour * 60 + x.minute) * 60)
+        flights_mod = separateFlights(flight)
+        x_axes = {'hour':flight['hour'].unique(),'date':flight['date'].unique()}
         
+        date_axes = flight[['tagID','date']].value_counts()
+        hour_axes = flight[['tagID','hour']].value_counts()
+        
+        y_axes = {'hour':max(hour_axes)+1,'date':max(date_axes)+1}
+        
+        bee_division, bee_vectors = divideBees(flight)
 
         return html.Div([
             
@@ -191,7 +201,12 @@ def parse_contents(contents, filename, date):
             dcc.Store(id='activity', data=allActivity.to_dict('records')), 
             dcc.Store(id='flights', data=flight.to_dict('records')), 
             dcc.Store(id='all-flights', data=flight.to_dict('records')),
-            dcc.Store(id='sunrise-sunset', data=None)
+            dcc.Store(id='sunrise-sunset', data=None),
+            dcc.Store(id='flights-mod',data=flights_mod.to_dict('records')),
+            dcc.Store(id='bee-division',data=bee_division),
+            dcc.Store(id='bee-vectors',data=bee_vectors),
+            dcc.Store(id='x-axes',data=x_axes),
+            dcc.Store(id='y-axes',data=y_axes),
             
        ])
             
@@ -207,8 +222,9 @@ def parse_contents(contents, filename, date):
                 Input('flights','data'),
                 Input('activity','data'),
                 Input('all-flights','data'),
+                Input('y-axes','data'),
                 prevent_initial_call=True)
-def display_app(flights, activity, all_flights):
+def display_app(flights, activity, all_flights, y_axes):
 
     if flights == None:
         return None
@@ -220,8 +236,6 @@ def display_app(flights, activity, all_flights):
     all_flight = pd.DataFrame(all_flights)
     flight = pd.DataFrame(flights)
     allActivity = pd.DataFrame(activity)
-    
-    global is_vertical
     
     flight['tripStart'] = pd.to_datetime(flight['tripStart'], format='mixed') 
     flight['tripEnd'] = pd.to_datetime(flight['tripEnd'], format='mixed') 
@@ -250,13 +264,24 @@ def display_app(flights, activity, all_flights):
         
     beeSum, beeMin, beeSumTime, beeMinTime = linReg(allActivity,all_flight)
         
-    cluster1, cluster2 = plotCluster(allActivity, flight)
+    #cluster1, cluster2 = plotCluster(allActivity, flight)
     #unique bees for dropdown 
     selectBee = pd.unique(flight['tagID'])
     
     beeSummary = beeSummary.astype(str)
     
     #print(type(beeSummary['tagID'].iloc[0]))
+    
+    #Average of all bees
+    
+    fig1_, fig2_, fig3_ = beeAverage(flight, y_axes)
+    
+    probs1, probs2 = plotProbs(flight,flight)
+    
+    beeLen = len(flight['tagID'].unique())
+    
+    #fig4_ = flightDensity(flight_sub)
+    
 
     return html.Div([
                 dcc.Tabs([
@@ -280,17 +305,10 @@ def display_app(flights, activity, all_flights):
                             
                             dbc.Card(
                             dbc.CardBody([
-                            html.P("Select second bee tag."),
-                            dcc.Dropdown(
-                                options=selectBee,
-                                #options=['55','66'],
-                                placeholder="Select individual tag",
-                                id="dropdown-bee2",
-                                multi=False,
-                                searchable=True),
+                            html.P("Average of all bees in dataset."),
                             
-                            ]),style={'width':'100%'}),
-                            ],style={'display':'flex','width':'95.5%','backgroundImage': 'url("/beeapp/assets/hex.jpg")','backgroundRepeat':'repeat'},className="bee-selection"),
+                            ]),style={'width':'100%','alignItems':'center','justifyContent':'center'}),
+                            ],style={'display':'flex','width':'100%','backgroundImage': 'url("assets/hex.jpg")','backgroundRepeat':'repeat'},className="bee-selection"),
                             
                             dcc.Tabs(
                                 vertical=True,
@@ -306,15 +324,12 @@ def display_app(flights, activity, all_flights):
                                          html.P("Select a bee to begin visualizing.",style={'padding-top':'10px'})
                                          
                                          ],style={'width': '100%','height':'80vh','backgroundColor':'white','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'}),
-                                         html.Div(id='fig1_',children=[
                                          
-                                         html.P("Select a second bee to compare.",style={'padding-top':'10px'})
-                                         
-                                         ],style={'backgroundColor':'#feffe3','width': '100%','height':'80vh','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'})
+                                         dcc.Graph(figure = fig1_,config={'responsive': True},style={'width': '100%','height':'80vh'}),
                                          
                                      ],style={'display':'flex'},className="double-display")
                                      
-                                     ]),
+                                     ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                      dcc.Tab(className="custom-tab", selected_className="selected",label='Flights per Day', children=[
                                      
                                      
@@ -326,18 +341,15 @@ def display_app(flights, activity, all_flights):
                                          html.P("Select a bee to begin visualizing.",style={'padding-top':'10px'})
                                          
                                          ],style={'width': '100%','height':'80vh','backgroundColor':'white','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'}),
-                                         html.Div(id='fig2_',children=[
                                          
-                                         html.P("Select a second bee to compare.",style={'padding-top':'10px'})
-                                         
-                                         ],style={'backgroundColor':'#feffe3','width': '100%','height':'80vh','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'})
+                                         dcc.Graph(figure = fig2_,config={'responsive': True},style={'width': '100%','height':'80vh'}),
                                          
                                      ],style={'display':'flex'},className="double-display")
                                      
                                      
                                      
                                      
-                                     ]),
+                                     ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                      dcc.Tab(className="custom-tab", selected_className="selected",label='Flight Duration per Day', children=[
                                      
                                      html.Div([
@@ -350,7 +362,7 @@ def display_app(flights, activity, all_flights):
                                          ],style={'width': '100%','height':'80vh','backgroundColor':'white','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'}),
                                          html.Div(id='fig3_',children=[
                                          
-                                         html.P("Select a second bee to compare.",style={'padding-top':'10px'})
+                                         dcc.Graph(figure = fig3_,config={'responsive': True},style={'width': '100%','height':'80vh'}),
                                          
                                          ],style={'backgroundColor':'#feffe3','width': '100%','height':'80vh','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'})
                                          
@@ -358,7 +370,42 @@ def display_app(flights, activity, all_flights):
                                      
                                      
                                      
-                                     ]),
+                                     ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
+                                     dcc.Tab(className="custom-tab", selected_className="selected",label='Flights at Time of Day Distribution', children=[
+                                     
+                                     
+                                     html.Div([
+                                     
+                                         html.Div(id='probs1',children=[
+                                         
+                                         
+                                         html.P("Select a bee to begin visualizing.",style={'padding-top':'10px'})
+                                         
+                                         ],style={'width': '100%','height':'80vh','backgroundColor':'white','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'}),
+                                         
+                                         dcc.Graph(figure = probs1,config={'responsive': True},style={'width': '100%','height':'80vh'}),
+                                         
+                                     ],style={'display':'flex'},className="double-display")
+                                     
+                                     ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
+                                     
+                                     dcc.Tab(className="custom-tab", selected_className="selected",label='Flights at Each Day Distribution', children=[
+                                     
+                                     
+                                     html.Div([
+                                     
+                                         html.Div(id='probs2',children=[
+                                         
+                                         
+                                         html.P("Select a bee to begin visualizing.",style={'padding-top':'10px'})
+                                         
+                                         ],style={'width': '100%','height':'80vh','backgroundColor':'white','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'}),
+                                         
+                                         dcc.Graph(figure = probs2,config={'responsive': True},style={'width': '100%','height':'80vh'}),
+                                         
+                                     ],style={'display':'flex'},className="double-display")
+                                     
+                                     ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                      dcc.Tab(className="custom-tab", selected_className="selected",label='Flights at Time and Date', children=[
                                      
                                      
@@ -372,7 +419,7 @@ def display_app(flights, activity, all_flights):
                                          ],style={'width': '100%','height':'80vh','backgroundColor':'white','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'}),
                                          html.Div(id='fig4_',children=[
                                          
-                                         html.P("Select a second bee to compare.",style={'padding-top':'10px'})
+                                         
                                          
                                          ],style={'backgroundColor':'#feffe3','width': '100%','height':'80vh','display': 'flex','width': '100%','justifyContent': 'center','alignItems': 'center'})
                                          
@@ -380,35 +427,56 @@ def display_app(flights, activity, all_flights):
                                      
                                      
                                      
-                                     ]),
+                                     ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
+                                     
+                                     dcc.Tab(className="custom-tab", selected_className="selected",label='Clustering for Time of Day and Flight Duration', children=[
+                                     
+                                     
+                                        dbc.Card(
+                                        dbc.CardBody([
+                                        
+                                         dcc.Dropdown(
+                                         options=[2,3,4],
+                                         placeholder="Select cluster number",
+                                         id="cluster-dropdown-single",
+                                         multi=False),
+                                         html.Div(id='cluster-single',children=[html.P("Select cluster number to display graph.")])
+                                        #dcc.Graph(figure=cluster2, config={'responsive': True}, style={'width':'100%'})
+                                        
+                                        ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards"),
+                                     
+                                     ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                      dcc.Tab(className="custom-tab", selected_className="selected",label='Chronogram', children=[
                                      
                                      
                                      html.Div([
-                                                   html.P("Input latitude and longitude:",style={'color':'white'}),
-                                                                    
-                                                                    dcc.Input(
-                                                                    id="lat2", type="number",
-                                                                    placeholder="Latitude",
-                                                                    value=None
-                                                                    ),
-                                                                    dcc.Input(
-                                                                    id="lon2", type="number",
-                                                                    placeholder="Longitude",
-                                                                    value=None
-                                                                    ),
-                                            ], style={'width':'100%','padding-top':'10px', 'padding-left':'10px','backgroundColor':'#301808','padding-bottom':'10px'}),
-                                            
-                                            
-                                     html.Div([
-                                            html.Div(id='individual-chronogram',children=[html.P("Select a bee to begin visualizing.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'white'}),
-                                            html.Div(id='individual-chronogram2',children=[html.P("Select a second bee to compare.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'#feffe3'}),
-                                     
-                                     ],style={'display':'flex','height': '80vh'},className="double-display")
-                                     ]),
+                                    html.Div([
+                                           html.P("Input latitude and longitude:",style={"color":"white"}),
+                                                            
+                                                            dcc.Input(
+                                                            id="lat2", type="number",
+                                                            placeholder="Latitude",
+                                                            value=None
+                                                            ),
+                                                            dcc.Input(
+                                                            id="lon2", type="number",
+                                                            placeholder="Longitude",
+                                                            value=None
+                                                            ),
+                                    ], style={'padding-top':'10px','padding-left':'10px','backgroundColor':'#301808','padding-bottom':'10px'}),
+                                    
+                                    
+
+                                    html.Div([
+                                            html.Div(id='individual-chronogram',children=[html.P("Input coordinates to display chronogram.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'white'}),
+                                   
+                                     ],style={'display':'flex','height': '80vh','flexDirection':'column'}),
+                                    ],className="chrono")
+                                    ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}), 
+
                                      
                                 ],className="vertical-tabs")                        
-                            ],style={'display': 'flex','flexDirection': 'column','backgroundImage': 'url("/beeapp/assets/hex.jpg")','backgroundRepeat':'repeat'},className="background-image"),										
+                            ],style={'display': 'flex','flexDirection': 'column','backgroundImage': 'url("assets/hex.jpg")','backgroundRepeat':'repeat'},className="background-image"),										
                         ],style={'font-size':'24px','backgroundColor':'#feffe3'}, selected_style={'font-size':'24px','font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                         
                         
@@ -455,7 +523,7 @@ def display_app(flights, activity, all_flights):
                                         )
                                         ],style={'width':'90%','margin':'auto'})
                                 ]),style={'padding-top':'5vh'},className="cards")        
-                                ]),
+                                ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                     
                                 dcc.Tab(className="custom-tab", selected_className="selected",label="General Summary",children=[
                                     
@@ -501,7 +569,7 @@ def display_app(flights, activity, all_flights):
                                     
                                     ],style={'height':'80vh'})
                                     
-                                    ]),
+                                    ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                     
                                     dcc.Tab(className="custom-tab", selected_className="selected",label="Flights at Time of Day",children=[
                                     
@@ -511,30 +579,42 @@ def display_app(flights, activity, all_flights):
                                          
                                         ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards")
                                          
-                                    ]),
+                                    ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                     dcc.Tab(className="custom-tab", selected_className="selected",label="Duration of Flights at Time of Day",children=[
                                     
                                         dbc.Card(
                                         dbc.CardBody([
                                         dcc.Graph(figure = length,config={'responsive': True},style={'width': '100%'})
                                         ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards"),
-                                    ]),
+                                    ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                     dcc.Tab(className="custom-tab", selected_className="selected",label="Clustering for Time of Day and Flight Duration",children=[
                                         dbc.Card(
                                         dbc.CardBody([
                                         
-                                        dcc.Graph(figure=cluster1, config={'responsive': True}, style={'width':'100%'})
+                                         dcc.Dropdown(
+                                         options=[2,3,4],
+                                         placeholder="Select cluster number",
+                                         id="cluster-dropdown-1",
+                                         multi=False),
+                                         html.Div(id='cluster-all-1',children=[html.P("Select cluster number to display graph.")])
+                                        #dcc.Graph(figure=cluster1, config={'responsive': True}, style={'width':'100%'})
                                         
                                         ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards"),
-                                    ]),
+                                    ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                     dcc.Tab(className="custom-tab", selected_className="selected",label="Clustering for Flight Duration and Age",children=[
                                         dbc.Card(
                                         dbc.CardBody([
                                         
-                                        dcc.Graph(figure=cluster2, config={'responsive': True}, style={'width':'100%'})
+                                         dcc.Dropdown(
+                                         options=[2,3,4],
+                                         placeholder="Select cluster number",
+                                         id="cluster-dropdown-2",
+                                         multi=False),
+                                         html.Div(id='cluster-all-2',children=[html.P("Select cluster number to display graph.")])
+                                        #dcc.Graph(figure=cluster2, config={'responsive': True}, style={'width':'100%'})
                                         
                                         ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards"),
-                                    ]),
+                                    ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                     dcc.Tab(className="custom-tab", selected_className="selected",label="Relationship Between Time Passed and Flight Duration",children=[
                                     
                                     dbc.Card(
@@ -548,7 +628,7 @@ def display_app(flights, activity, all_flights):
                                     
                                     ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards"),
                                     
-                                    ]),
+                                    ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                     dcc.Tab(className="custom-tab", selected_className="selected",label="Relationship Between Time Passed and Average Number of Flights", children=[
                                     
                                     
@@ -562,10 +642,11 @@ def display_app(flights, activity, all_flights):
                                     
                                     ]),style={'height':'100%','margin-top':'5vh','margin-left':'5%'},className="cards"),
                                     
-                                    ]),
+                                    ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                                     
                                     dcc.Tab(className="custom-tab", selected_className="selected",label="Chronogram", children=[
                                     
+                                    html.Div([
                                     html.Div([
                                            html.P("Input latitude and longitude:",style={"color":"white"}),
                                                             
@@ -579,24 +660,58 @@ def display_app(flights, activity, all_flights):
                                                             placeholder="Longitude",
                                                             value=None
                                                             ),
-                                    ], style={'padding-top':'10px','padding-left':'10px','backgroundColor':'#301808','padding-bottom':'10px','width':'66.8vw'}),
+                                    ], style={'padding-top':'10px','padding-left':'10px','backgroundColor':'#301808','padding-bottom':'10px'}),
                                     
-                                    dbc.Card(
-                                    dbc.CardBody([
-                                   
-                                    html.Div(id="chronogram-all",children=[html.P("Input coordinates to display chronogram.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '60vw','height':'80vh'}),
                                     
-                                    html.Div(id="hover-output"),
-                                    
-                                    ]),style={'height':'100vh','margin-top':'5vh','margin-left':'5%'},className="cards"),
-                                    
-                                    ]),       
+
+                                    html.Div([
+                                            html.Div(id='chronogram-all',children=[html.P("Input coordinates to display chronogram.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'white'}),
+                                     
+                                            html.Div(id="hover-output"),
+                                     ],style={'display':'flex','height': '80vh','flexDirection':'column'}),
+                                    ],className="chrono")
+                                    ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),       
                                                                        
                                     ],className="vertical-tabs"),
                                     
-                                    ],style={'backgroundImage': 'url("/beeapp/assets/hex.jpg")','backgroundRepeat':'repeat'},className="background-image")
+                                    ],style={'backgroundImage': 'url("assets/hex.jpg")','backgroundRepeat':'repeat'},className="background-image")
                                     
-                               ],style={'font-size':'24px','backgroundColor':'#feffe3'}, selected_style={'font-size':'24px','font-weight':'bold','backgroundColor': '#301808', 'color': 'white'})
+                               ],style={'font-size':'24px','backgroundColor':'#feffe3'}, selected_style={'font-size':'24px','font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
+                    
+                    dcc.Tab(label="Subset Bees", children=[
+                        
+                        html.Div([
+                            html.Div([
+                                html.Div([
+                                
+                                
+                                html.P("Select number of bees to observe.",style={}),
+                                dcc.Input(id='select-quant', type='number', min=1, max=beeLen)
+                                
+                                ],style={'width':'100%','alignItems':'center','justifyContent':'center','backgroundColor': '#301808', 'color': 'white','padding-left':'5px'}),
+                                
+                                html.Div([
+                                
+                                
+                                html.P("Select filter for bees.",style={'color': 'white'}),
+                                dcc.Dropdown(['All', 'Morning Focused', 'Afternoon Focused', 'Even Distribution'], 'All', id='bee-filter'),
+                                
+                                ],style={'width':'100%','alignItems':'center','justifyContent':'center','backgroundColor': '#301808','padding-left':'5px'}),
+                                
+                                
+                                html.Div([
+                                
+                                html.P("Select a bee to find similar bees.",style={'color': 'white'}),
+                                dcc.Dropdown(options=selectBee,searchable=True, id='similar-bees'),
+                                
+                                ],style={'width':'100%','alignItems':'center','justifyContent':'center','backgroundColor': '#301808','padding-left':'5px'}),
+                            ],style={'display':'flex'}, className="dropdown-row"),
+                            
+                            dcc.Tabs(vertical=True,id='chrono-sub',className="vertical-tabs vertical-scroll")
+                        
+                        ],style={'backgroundImage': 'url("assets/hex.jpg")','backgroundRepeat':'repeat'},className="background-image")
+                    
+                    ],style={'font-size':'24px','backgroundColor':'#feffe3'}, selected_style={'font-size':'24px','font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}),
                     
                     ], style={'width':'100%'})
                         
@@ -661,7 +776,7 @@ def select_date(data):
     
     return html.Div([
            html.H1("BeehAIve",style={'font-family':'Bahnschrift','textAlign': 'center','padding':'10vh', 'backgroundColor':'rgba(255, 255, 255,0.5)'}),
-    ], style={'backgroundImage': 'url("/beeapp/assets/hex.jpg")','backgroundRepeat':'repeat','width':'95.5%','height':'30vh','backgroundSize': 'auto','border':'1px black solid','-webkit-text-stroke': '1px white'})
+    ], style={'backgroundImage': 'url("assets/hex.jpg")','backgroundRepeat':'repeat','width':'100%','height':'30vh','backgroundSize': 'auto','border':'1px black solid','-webkit-text-stroke': '1px white'})
 
 
 
@@ -766,11 +881,10 @@ def sunrise_sunset(lat, lon, activity):
 
 @app.callback([Output('chronogram-all', 'children')],
               Input('sunrise-sunset', 'data'),
-              State('flights', 'data'),
+              State('flights-mod', 'data'),
               State('activity', 'data'),
-              State('chronogram-all', 'children'),
               prevent_initial_call=True)             
-def displayChronogramAll(srss, data, activity, tabs):
+def displayChronogramAll(srss, data, activity):
 
     #none checks
     if data is None:
@@ -779,10 +893,6 @@ def displayChronogramAll(srss, data, activity, tabs):
         raise PreventUpdate
     if srss is None:
         raise PreventUpdate
-        
-    allActivity = pd.DataFrame(activity)
-    allActivity['start'] = pd.to_datetime(allActivity['start'], format='mixed')   
-    
     
     flights = pd.DataFrame(data)
     flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')
@@ -790,10 +900,9 @@ def displayChronogramAll(srss, data, activity, tabs):
 
     dt = pd.DataFrame(srss)
     
-    flights_mod = separateFlights(flights)
-    fig = createActoGraphAll(flights_mod,dt)
+    fig = createActoGraphAll(flights,dt)
     
-    return [html.Div([dcc.Graph(figure=fig, id="chronogram-all-graph",style={'width':'100%'}, clear_on_unhover=True), dcc.Store(id='flights-mod', data=flights_mod.to_dict('records'))])]
+    return [dcc.Graph(figure=fig, id="chronogram-all-graph",style={'width':'100%','height':'100%'}, config={'responsive': True},clear_on_unhover=True)]
     
     
 #function to display hover on chronogram
@@ -875,6 +984,111 @@ def updateLon2(value, value2):
     raise PreventUpdate
     
 
+#function to display clusters by user selection
+@app.callback(
+        Output('cluster-all-1', 'children'),
+        Input('cluster-dropdown-1', 'value'),
+        Input('flights','data'),
+        Input('activity','data'),
+        prevent_initial_call=True
+)
+def cluster_all_1(clusters, data, activity):
+    if clusters is None:
+        return None
+    if data is None:
+        return None
+    if activity is None:
+        return None
+        
+        
+    flight = pd.DataFrame(data)
+    allActivity = pd.DataFrame(activity)
+    
+    flight['tripStart'] = pd.to_datetime(flight['tripStart'], format='mixed') 
+    flight['tripEnd'] = pd.to_datetime(flight['tripEnd'], format='mixed') 
+    flight['duration'] = flight['tripEnd'] - flight['tripStart']
+    flight['theTime'] = flight['tripStart'].apply(lambda x: pd.to_datetime(pd.to_datetime(x).time().strftime('%H:%M:%S')))    
+    
+    allActivity['start'] = pd.to_datetime(allActivity['start'], format='mixed') 
+    allActivity['end'] = pd.to_datetime(allActivity['end'], format='mixed') 
+    
+    
+    fig = plotClusterTimeDur(allActivity,flight,clusters)
+    
+    return [dcc.Graph(figure=fig, config={'responsive': True}, style={'width':'100%'})]
+    
+
+@app.callback(
+        Output('cluster-all-2', 'children'),
+        Input('cluster-dropdown-2', 'value'),
+        Input('flights','data'),
+        Input('activity','data'),
+        prevent_initial_call=True
+)
+def cluster_all_1(clusters, data, activity):
+    if clusters is None:
+        return None
+    if data is None:
+        return None
+    if activity is None:
+        return None
+        
+        
+    flight = pd.DataFrame(data)
+    allActivity = pd.DataFrame(activity)
+    
+    flight['tripStart'] = pd.to_datetime(flight['tripStart'], format='mixed') 
+    flight['tripEnd'] = pd.to_datetime(flight['tripEnd'], format='mixed') 
+    flight['duration'] = flight['tripEnd'] - flight['tripStart']
+    flight['theTime'] = flight['tripStart'].apply(lambda x: pd.to_datetime(pd.to_datetime(x).time().strftime('%H:%M:%S')))    
+    
+    allActivity['start'] = pd.to_datetime(allActivity['start'], format='mixed') 
+    allActivity['end'] = pd.to_datetime(allActivity['end'], format='mixed') 
+    
+    
+    fig = plotClusterDayDur(allActivity,flight,clusters)
+    
+    return [dcc.Graph(figure=fig, config={'responsive': True}, style={'width':'100%'})]
+    
+
+@app.callback(
+        Output('cluster-single', 'children'),
+        Input('cluster-dropdown-single', 'value'),
+        Input('dropdown-bee','value'),
+        Input('flights','data'),
+        Input('activity','data'),
+        prevent_initial_call=True
+)
+def cluster_all_1(clusters, beeID, data, activity):
+    if clusters is None:
+        raise PreventUpdate
+    if data is None:
+        raise PreventUpdate
+    if activity is None:
+        raise PreventUpdate
+    if beeID is None:
+        raise PreventUpdate
+        
+        
+    flight = pd.DataFrame(data)
+    allActivity = pd.DataFrame(activity)
+    
+    flight['tripStart'] = pd.to_datetime(flight['tripStart'], format='mixed') 
+    flight['tripEnd'] = pd.to_datetime(flight['tripEnd'], format='mixed') 
+    flight['duration'] = flight['tripEnd'] - flight['tripStart']
+    flight['theTime'] = flight['tripStart'].apply(lambda x: pd.to_datetime(pd.to_datetime(x).time().strftime('%H:%M:%S')))    
+    
+    allActivity['start'] = pd.to_datetime(allActivity['start'], format='mixed') 
+    allActivity['end'] = pd.to_datetime(allActivity['end'], format='mixed') 
+    
+    flight = flight[flight['tagID']==beeID]
+    
+    fig = plotClusterTimeDur(allActivity,flight,clusters)
+    
+    return [dcc.Graph(figure=fig, config={'responsive': True}, style={'width':'100%'})]
+    
+
+
 
 #function to display graphs when bee is selected
 
@@ -883,11 +1097,15 @@ def updateLon2(value, value2):
         Output('fig2', 'children'),
         Output('fig3', 'children'),
         Output('fig4', 'children'),
+        Output('probs1','children'),
+        Output('probs2','children'),
         Input('dropdown-bee', 'value'),
         Input('flights', 'data'), 
+        Input('x-axes','data'),
+        Input('y-axes','data'),
         prevent_initial_call=True
 )
-def show_individual(bee_id, data):
+def show_individual(bee_id, data, x_axes, y_axes):
     if bee_id is None:
         return None
     if data is None:
@@ -898,58 +1116,27 @@ def show_individual(bee_id, data):
     flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')
     flights['tripEnd'] = pd.to_datetime(flights['tripEnd'], format='mixed')
     flights['duration'] = (flights['tripEnd'] - flights['tripStart'])
-    flights['duration'] = flights['duration'].apply(lambda x: x.total_seconds()/60)
+    flights['duration'] = flights['duration'].apply(lambda x: x.total_seconds()/60).round(2)
         
     bee = flights[flights['tagID'] == bee_id].copy()
     
     
-    fig1, fig2, fig3 = plotHist(bee)
+    fig1, fig2, fig3 = plotHist(bee,x_axes,y_axes)
     fig4 = flightDensity(bee)
     
-    return [dcc.Graph(figure = fig1,style={'width': '100%'})], [dcc.Graph(figure = fig2,style={'width': '100%'})], [dcc.Graph(figure = fig3,style={'width': '100%'})], [dcc.Graph(figure = fig4,style={'width': '100%'})]
+    probs1, probs2 = plotProbs(bee,flights)
     
-
-
-@app.callback(
-        Output('fig1_', 'children'),
-        Output('fig2_', 'children'),
-        Output('fig3_', 'children'),
-        Output('fig4_', 'children'),
-        Input('dropdown-bee2', 'value'),
-        Input('flights', 'data'), 
-        prevent_initial_call=True
-)
-def show_individual2(bee_id, data):
-    if bee_id is None:
-        return None
-    if data is None:
-        return None
-        
-        
-    flights = pd.DataFrame(data)
-    flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')
-    flights['tripEnd'] = pd.to_datetime(flights['tripEnd'], format='mixed')
-    flights['duration'] = (flights['tripEnd'] - flights['tripStart'])
-    flights['duration'] = flights['duration'].apply(lambda x: x.total_seconds()/60)
-        
-    bee = flights[flights['tagID'] == bee_id].copy()
-    
-    
-    fig1, fig2, fig3 = plotHist(bee)
-    fig4 = flightDensity(bee)
-    
-    return [dcc.Graph(figure = fig1,style={'width': '100%'})], [dcc.Graph(figure = fig2,style={'width': '100%'})], [dcc.Graph(figure = fig3,style={'width': '100%'})], [dcc.Graph(figure = fig4,style={'width': '100%'})]
+    return [dcc.Graph(figure = fig1,style={'width': '100%'},config={'responsive': True})], [dcc.Graph(figure = fig2,style={'width': '100%'},config={'responsive': True})], [dcc.Graph(figure = fig3,style={'width': '100%'},config={'responsive': True})], [dcc.Graph(figure = fig4,style={'width': '100%'},config={'responsive': True})], [dcc.Graph(figure = probs1,style={'width': '100%'},config={'responsive': True})], [dcc.Graph(figure = probs2,style={'width': '100%'},config={'responsive': True})]
     
 
 
 @app.callback([Output('individual-chronogram', 'children')],
               Input('dropdown-bee', 'value'),
               Input('sunrise-sunset', 'data'),
-              State('flights', 'data'),
+              State('flights-mod', 'data'),
               State('activity', 'data'),
-              State('individual-chronogram', 'children'),
               prevent_initial_call=True)             
-def displayChronogramSingle(beeid, srss, data, activity, tabs):
+def displayChronogramSingle(beeid, srss, data, activity):
 
     #none checks
     if data is None:
@@ -968,22 +1155,26 @@ def displayChronogramSingle(beeid, srss, data, activity, tabs):
 
     dt = pd.DataFrame(srss)
     
-    flights_mod = separateFlights(flights)
-    bee = flights_mod[flights_mod['tagID'] == beeid]
+    bee = flights[flights['tagID'] == beeid]
     fig = createActoGraph(bee,dt)
     
     
-    return [dcc.Graph(figure = fig,style={'width':'100%'})]
+    return [dcc.Graph(figure = fig,style={'width':'100%'},config={'responsive': True})]
     
-    
-@app.callback([Output('individual-chronogram2', 'children')],
-              Input('dropdown-bee2', 'value'),
+   
+#subselection of graphs   
+
+@app.callback([Output('chrono-sub', 'children')],
+              Input('select-quant', 'value'),
               Input('sunrise-sunset', 'data'),
-              State('flights', 'data'),
+              Input('bee-filter','value'),
+              Input('similar-bees','value'),
+              State('flights-mod', 'data'),
               State('activity', 'data'),
-              State('individual-chronogram', 'children'),
-              prevent_initial_call=True) 
-def displayChronogramSingle(beeid, srss, data, activity, tabs):
+              State('bee-division','data'),
+              State('bee-vectors','data'),
+              prevent_initial_call=True)             
+def displayChronogramMulti(bees, srss, filter, similar, data, activity, division, vectors):
 
     #none checks
     if data is None:
@@ -992,25 +1183,82 @@ def displayChronogramSingle(beeid, srss, data, activity, tabs):
         raise PreventUpdate
     if srss is None:
         raise PreventUpdate
-    if beeid is None:
+    if bees is None:
         raise PreventUpdate
         
-        
     flights = pd.DataFrame(data)
+    
+    ids = flights['tagID'].unique()
+    
+    dt = pd.DataFrame(srss)
+    
     flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')
     flights['tripEnd'] = pd.to_datetime(flights['tripEnd'], format='mixed')
 
-    dt = pd.DataFrame(srss)
+    if filter == "Morning Focused":
+        bees = min(bees,len(division['morning']))
+        ids = division['morning']
+    elif filter == "Afternoon Focused":
+        bees = min(bees,len(division['afternoon']))
+        ids = division['afternoon']
+    elif filter == "Even Distribution":
+        bees = min(bees,len(division['even']))
+        ids = division['even']
+    else:
+        bees = bees
+        
+        
+    if similar is not None:
+        similars = findSimilar(vectors,similar)
+        ids = list(set(ids).intersection(similars))
+        bees = min(bees,len(ids))
+            
+            
+            
+            
+    tabs = []
+    counter = 1
+    for i in range(0,bees,4):
     
-    flights_mod = separateFlights(flights)
-    bee = flights_mod[flights_mod['tagID'] == beeid]
-    fig = createActoGraph(bee,dt)
+            columns = [[],[]]
+            
+            if counter * 4 <= bees:
+                limit = 4
+            else:
+                limit = bees % 4
+            for j in range(limit):
+                bee = ids[i+j]
+                bee = flights[flights['tagID']==bee]
+                graph = createActoGraphSub(bee,dt)
+                if j%2 == 0:
+                    columns[0].append(dcc.Graph(figure = graph,style={'width':'100%','height':'100%'},config={'responsive': True}))
+                else:
+                    columns[1].append(dcc.Graph(figure = graph,style={'width':'100%','height':'100%'},config={'responsive': True}))
+            
+            counter += 1
+            
+           
+           
+            tabs.append(dcc.Tab(className="custom-tab", selected_className="selected",label=f"Bees {i} to {i+limit-1}", children=[
+            
+                html.Div([
+                   
+                   html.Div(children=columns[0],style={'display':'flex','flexDirection':'column'},className="display-col"),
+                   
+                   html.Div(children=columns[1],style={'display':'flex','flexDirection':'column'},className="display-col")
+                
+                
+                ],style={'display':'flex'},className='double-display')
+            
+            
+            ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}))
+            
     
     
-    return [dcc.Graph(figure = fig,style={'width':'100%'})]
-
-
+    return [tabs]
+    
+    
 #run app
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)

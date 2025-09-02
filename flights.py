@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from scipy import stats
+from numpy.linalg import norm
 import warnings
 
 
@@ -206,3 +207,50 @@ def makeTotalSum(summary, flights):
     tripSum = pd.DataFrame.from_dict(tripDict)
     
     return totalSum, tripSum
+    
+    
+#divide groups into morning/afternoon focused
+#additionally, create vectors of all bee hour distribution
+#input: all flights
+#output: dictionary with morning/afternoon/even split
+#output: dictionary with all vectors of bees
+def divideBees(dataset):
+    hour = dataset['hour'].unique()
+    hour.sort()
+    split = np.where(hour == 12)[0][0]
+    final = {"morning":[],"afternoon":[],"even":[]}
+    vectors = {}
+    #print(split)
+    for i in dataset['tagID'].unique():
+        bee = dataset[dataset['tagID'] == i]
+        data, bins = np.histogram(bee['hour'], bins=hour,density=True)
+        #print(i)
+        #print(data)
+        morning = sum(data[0:split])
+        afternoon = sum(data[split:])
+        if morning > 0.7:
+            final['morning'].append(i)
+        elif afternoon > 0.7:
+            final['afternoon'].append(i)
+        else:
+            final['even'].append(i)
+
+        vectors[str(i)] = data.tolist()
+            
+    return final,vectors
+        
+        
+#find cosine similarity between all bee vectors
+#input: vector dictionary and desired tagID
+#output: list of tagIDs with similar vectors
+def findSimilar(vectors, tagID):
+    similars = []
+    current = vectors[str(tagID)]
+    for key,value in vectors.items():
+        A = value
+        B = current
+        cosine = np.dot(A, B) / (norm(A) * norm(B))
+        if cosine > 0.8:
+            similars.append(key)
+    return(similars)
+

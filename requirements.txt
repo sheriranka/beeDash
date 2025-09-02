@@ -7,8 +7,9 @@ datetime
 timezonefinder
 scipy
 suntime
-plotly
+plotly==5.21
 matplotlib
 scikit-learn
 gunicorn
 dash-tools
+dash_breakpoints

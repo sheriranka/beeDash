@@ -1,18 +1,10 @@
-.tab.custom-tab{
-
-	background-color: #feffe3;
-}
-
-.tab.selected{
-
-	font-weight: bold;
-	background-color: #301808;
-	color: white;
-}
-
 .bee-selection{
 	flex-direction:row;
-	padding-left:30%;
+	padding-left:20%;
+}
+
+.dropdown-row{
+	flex-direction:row;
 }
 
 .double-graph{
@@ -20,16 +12,20 @@
 }
 
 .double-display{
-		width: 65vw;
+		width: 76vw;
 		flex-direction:row;
 	}
 
 .vertical-tabs{
 	float:left;
-	width:30%;
+	width:20%;
 
 }
 
+.vertical-scroll{	
+	overflow-y: auto;
+    max-height: 100vh;
+}
 .landing{
 	flex-direction:row;
 }
@@ -46,6 +42,22 @@
 .landing-text{
 
 	width:40%;
+}
+
+.display-col{
+		width:50%;
+		height:100vh;
+	}
+
+
+@media (max-width: 1200px){
+	
+	.double-display{
+		width: 75vw;
+		flex-direction:row;
+	}
+	
+	
 }
 
 @media (max-width: 768px) {
@@ -84,4 +96,14 @@
 	.landing-text{
 		width:100%;
 	}
+	
+	.display-col{
+		width:100%;
+		height:300vh;
+	}
+	.dropdown-row{
+		flex-direction:column;
+	}
 }
+
+

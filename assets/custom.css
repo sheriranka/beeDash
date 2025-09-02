@@ -11,14 +11,23 @@
 }
 
 .cards{
-		width:60vw;
+		width:70vw;
 		margin:5%;
 	}
 	
 .chrono{
-		width:100%;
+		width:76vw;
 	}
 
+
+@media (max-width: 1200px){
+	
+	.chrono{
+		width:75vw;
+	}
+	
+	
+}
 @media screen and (max-width: 768px) {
 	
 	.cards{
