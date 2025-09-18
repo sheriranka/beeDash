@@ -28,6 +28,7 @@
 }
 .landing{
 	flex-direction:row;
+	height: 100%;
 }
 
 .logo-image{
@@ -36,7 +37,7 @@
 
 .background-image{
 
-	height:120vh;
+	height:150vh;
 }
 
 .landing-text{
@@ -45,9 +46,38 @@
 }
 
 .display-col{
-		width:50%;
 		height:100vh;
+		width:50%;
 	}
+	
+.multi-chrono{
+		width:100%;
+	}
+
+
+.pagination > li > a
+{
+    background-color: white;
+    color: black;
+}
+
+.pagination > li 
+.pagination > li 
+.pagination > li > span:focus,
+.pagination > li > span:hover
+{
+    color: black;
+    background-color: #eee;
+    border-color: #301808;
+}
+
+.pagination > .active
+{
+    color: white;
+    background-color: #301808;
+    border: solid 1px #301808;
+	--bs-pagination-active-bg: #301808;
+}
 
 
 @media (max-width: 1200px){
@@ -91,7 +121,7 @@
 
 	.background-image{
 
-		height:300vh;
+		height:300%;
 	}
 	.landing-text{
 		width:100%;

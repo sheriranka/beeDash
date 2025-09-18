@@ -806,10 +806,6 @@ def beeAverage(dataset, y):
     tickangle=45  
     )
     
-    fig1.update_yaxes(
-    tickmode='linear',
-    )
-    
     fig1.update_layout(
     title = f'Average Number of Flights at Time of Day<br>for all Bees',
     xaxis=dict(
@@ -848,10 +844,6 @@ def beeAverage(dataset, y):
             text="Number of Flights"
         )
     )
-    )
-    
-    fig2.update_yaxes(
-    tickmode='linear',
     )
     
     fig2.update_yaxes(range = [0,y['date']])
@@ -1006,10 +998,6 @@ def plotHist(dataset,x,y):
     tickangle=45 
     )
     
-    fig1.update_yaxes(
-    tickmode='linear',
-    )
-    
     fig1.update_layout(
     title = f'Number of Flights at Time of Day<br>for Bee {tagID}',
     xaxis=dict(
@@ -1050,9 +1038,6 @@ def plotHist(dataset,x,y):
     )
     )
     
-    fig2.update_yaxes(
-    tickmode='linear',
-    )
     
     fig2.update_yaxes(range = [0,y['date']])
     fig2.update_traces(marker_color='brown',marker_line_width=1,marker_line_color="white") 

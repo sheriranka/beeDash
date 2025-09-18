@@ -1,11 +1,12 @@
 #imports
 
-from dash import Dash, dash_table, dcc, html, Input, Output, callback, State, clientside_callback
+from dash import Dash, dash_table, dcc, html, Input, Output, callback, State, clientside_callback, ctx
 import dash_daq as daq
 
 
 import pandas as pd
 import numpy as np
+import itertools 
 import math
 import dash_bootstrap_components as dbc 
 import base64
@@ -38,6 +39,7 @@ server = app.server
 #constants
 
 tzf = TimezoneFinder() 
+perPage = 4
 
 #layout
 
@@ -48,11 +50,15 @@ app.layout = html.Div([
          html.Div([
          
                                 html.Div([
-                                    html.H1("BeehAIve",style={'font-family':'Bahnschrift','textAlign': 'center','padding':'2vh', 'backgroundColor':'rgba(255, 255, 255,0.5)'}),
-                                ], style={'backgroundImage': 'url("assets/hex.jpg")','backgroundRepeat':'repeat','width':'100%','height':'10vh','backgroundSize': 'auto','border':'1px black solid','-webkit-text-stroke': '1px white'}),
+                                    html.H1("BeehAIve",style={'font-family':'Bahnschrift','textAlign': 'center','padding':'2vh'}),
+                                ], style={'width':'100%','height':'10vh','backgroundSize': 'auto','border':'1px black solid','-webkit-text-stroke': '1px white', 'background-color':'rgba(255,255,255,0.7)'}),
          
              html.Div([
                                 html.Div([
+                                
+                                dbc.Card(
+                                dbc.CardBody([
+                                
                                 
                                 html.Div(id='sr-ss'),
                                 
@@ -74,6 +80,7 @@ app.layout = html.Div([
                                 html.Ul(children=[
                                                         html.Li("Individual Bee Data: Select a bee tag from the dropdown to view data visualizations associated with that bee."),
                                                         html.Li("Hive Data: Search for tags or values in empty block above values labeled 'Search..' in Summary Table to filter table display."),
+                                                        html.Li("Subset Bees: Select an amount of bees to observe, filter for morning and afternoon focus. Select an individual bee tag to display similar bees."),
                                                         html.Li("Date Range: Select an initial and final date to narrow down the data displayed to a desired date range."),
                                                         html.Li("Accessing the Chronogram: Enter latitude and longitude of your desired location in Chronogram to display chronogram with sunrise/sunset display.")
 
@@ -90,17 +97,21 @@ app.layout = html.Div([
 
 
                                                     ],style={'list-style-type':'square', 'font-size':'12px'}),
+                                                    
+                                
 
                                 html.P("Upload a csv file to begin visualizing."),
-
                                 
-                                ], style={'padding-top':'10px','padding-right':'30px'},className="landing-text"),                      
+                                ])),
                                 
-                                html.Img(src="https://cdn.pixabay.com/photo/2021/03/27/05/13/bee-6127510_1280.jpg",style={'border-radius': '10px','padding':'1%','margin':'auto'},className="logo-image"),
+                                
+                                ], style={'padding-top':'10px','padding-right':'30px', 'margin-bottom':'20px'},className="landing-text"),                      
+                                
+                                html.Img(src="assets/beeart.png",style={'border-radius': '50%','padding':'1%','margin':'auto'},className="logo-image"),
                                 
                                                                  
              ], style={'display': 'flex'},className="landing"),
-        ], id='landing-page', style={'width':'100%', 'padding-right':'10px', 'height':'100%'}),
+        ], id='landing-page', style={'width':'100%', 'padding-right':'10px', 'height':'100%','backgroundImage': 'url("assets/hex.jpg")','backgroundRepeat':'repeat'}),
             
 
         html.Div(children=[
@@ -119,8 +130,10 @@ app.layout = html.Div([
             html.Div(id="logo-title"),
             
             html.Div([
-            html.Div(id="dateSelector"),            
-            ],style={'display':'flex','flexDirection':'row','align-items': 'center','justify-content': 'center', 'background-color':'white'}),
+            html.Div(id="dateSelector"),   
+            html.Div(id="durationSelector-1"),
+            html.Div(id="durationSelector-2"),
+            ],style={'display':'flex','flexDirection':'row','align-items': 'center','justify-content': 'space-between', 'background-color':'white'}),
             
             html.Hr(),
         
@@ -129,7 +142,8 @@ app.layout = html.Div([
                 type="circle",
                 children=html.Div(id="output-data"),
                 style={"margin-top":"20px"},
-                target_components ={"output-data": "children"}
+                target_components ={"output-data": "children"},
+                color="#301808"
             ),
             dcc.Store(id='stored-data', storage_type='session'),
             
@@ -468,9 +482,12 @@ def display_app(flights, activity, all_flights, y_axes):
                                     
 
                                     html.Div([
-                                            html.Div(id='individual-chronogram',children=[html.P("Input coordinates to display chronogram.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'white'}),
-                                   
-                                     ],style={'display':'flex','height': '80vh','flexDirection':'column'}),
+                                            dcc.Loading(
+                                                children=html.Div(id='individual-chronogram',children=[html.P("Input coordinates to display chronogram.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'white'}),
+                                                type="circle",
+                                                color="#301808"
+                                            ),                                   
+                                        ],style={'display':'flex','height': '80vh','flexDirection':'column'}),
                                     ],className="chrono")
                                     ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}), 
 
@@ -665,8 +682,13 @@ def display_app(flights, activity, all_flights, y_axes):
                                     
 
                                     html.Div([
-                                            html.Div(id='chronogram-all',children=[html.P("Input coordinates to display chronogram.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'white'}),
-                                     
+                                    
+                                            dcc.Loading(
+                                                children=html.Div(id='chronogram-all',children=[html.P("Input coordinates to display chronogram.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'white'}),
+                                                type="circle",
+                                                color="#301808"
+                                            ),   
+                                            
                                             html.Div(id="hover-output"),
                                      ],style={'display':'flex','height': '80vh','flexDirection':'column'}),
                                     ],className="chrono")
@@ -707,7 +729,29 @@ def display_app(flights, activity, all_flights, y_axes):
                                 ],style={'width':'100%','alignItems':'center','justifyContent':'center','backgroundColor': '#301808','padding-left':'5px'}),
                             ],style={'display':'flex'}, className="dropdown-row"),
                             
-                            dcc.Tabs(vertical=True,id='chrono-sub',className="vertical-tabs vertical-scroll")
+                            html.Div([
+                                           html.P("Input latitude and longitude:",style={"color":"white"}),
+                                                            
+                                                            dcc.Input(
+                                                            id="lat3", type="number",
+                                                            placeholder="Latitude",
+                                                            value=None
+                                                            ),
+                                                            dcc.Input(
+                                                            id="lon3", type="number",
+                                                            placeholder="Longitude",
+                                                            value=None
+                                                            ),
+                                    ], style={'padding-top':'10px','padding-left':'10px','backgroundColor':'#301808','padding-bottom':'10px','width':'100%'}),
+                            
+                            dbc.Pagination(id="pagination", max_value=0, first_last=True, previous_next=True, style={'width':'100%','justify-content':'center','margin-top':'10px'}),
+                            dcc.Store(id='pagination-data'),
+                            
+                            dcc.Loading(
+                                children=html.Div(id='chrono-sub',children=[html.P("Select number of bees and input coordinates to display chronograms.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'white'}),
+                                type="circle",
+                                color="#301808"
+                            ),   
                         
                         ],style={'backgroundImage': 'url("assets/hex.jpg")','backgroundRepeat':'repeat'},className="background-image")
                     
@@ -764,7 +808,37 @@ def select_date(data):
                     end_date=date(maxdate.year, maxdate.month, maxdate.day)
     ),
     ], style={'padding-top':'10px'})
+    
+    
 
+@app.callback(Output('durationSelector-1', 'children'),
+               Input('activity','data'),
+               prevent_initial_call=True)
+def select_dur1(data):
+    if data is None:
+        return None   
+    return html.Div([
+               html.P("Select minimum flight duration to filter (seconds):"),
+               dcc.Input(
+               id="sec-dur", type="number",
+               placeholder="Seconds",
+               value=0)
+           ],style={'padding-top':'10px'})
+
+@app.callback(Output('durationSelector-2', 'children'),
+               Input('activity','data'),
+               prevent_initial_call=True)
+def select_dur2(data):
+    if data is None:
+        return None
+    return html.Div([
+               html.P("Select maximum flight duration to filter (minutes):"),
+               dcc.Input(
+               id="min-dur", type="number",
+               placeholder="Minutes",
+               value=720)
+           ],style={'padding-top':'10px'})
+            
 
 @app.callback(Output('logo-title', 'children'),
                Input('activity','data'),
@@ -804,6 +878,7 @@ def show_instructions(data):
                     html.Ul(children=[
                                             html.Li("Individual Bee Data: Select a bee tag from the dropdown to view data visualizations associated with that bee."),
                                             html.Li("Hive Data: Search for tags or values in empty block above values labeled 'Search..' in Summary Table to filter table display."),
+                                            html.Li("Subset Bees: Select an amount of bees to observe, filter for morning and afternoon focus. Select an individual bee tag to display similar bees."),
                                             html.Li("Date Range: Select an initial and final date to narrow down the data displayed to a desired date range."),
                                             html.Li("Accessing the Chronogram: Enter latitude and longitude of your desired location in Chronogram to display chronogram with sunrise/sunset display.")
 
@@ -832,26 +907,40 @@ def show_instructions(data):
         ], id="instructions-modal", style={'padding-top':'5px'}),
 
 @app.callback(Output('flights', 'data'),
+              Output('flights-mod', 'data'),
+              Output('bee-division', 'data'),
+              Output('bee-vectors', 'data'), 
+              Output('y-axes', 'data'),
+              Output('x-axes', 'data'),
+                Input('sec-dur', 'value'),
+                Input('min-dur', 'value'),
                 Input('my-date-picker-range', 'start_date'),
                 Input('my-date-picker-range', 'end_date'),
-                Input('all-flights', 'data'),
+                State('all-flights', 'data'),
                 prevent_initial_call=True)
-def select_a_date(start, end, data):
-    #print(start)
+def filter_a_flight(seconds,minutes,start, end, data):
     end = date.fromisoformat(end)
-    #print(end)
     end_time = datetime(end.year, end.month, end.day, hour=23, minute=59, second=59)
     flights = pd.DataFrame(data)
     flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')  
-    #print(flights[flights['tripStart'] > end])
-    #dates = selected
-    #s = flights[flights['date'].isin(dates)]
-    #return s.to_dict('records')
+    flights['tripEnd'] = pd.to_datetime(flights['tripEnd'], format='mixed')  
+    flights['duration'] = flights['duration'].apply(lambda x: pd.to_timedelta(x))
     dates = flights[(flights['tripStart'] >= start) & (flights['tripStart'] <= end_time)]
-    #print(dates)
-    return dates.to_dict('records')
+    dates = dates[(dates['duration'].dt.total_seconds() >= seconds) & (dates['duration'].dt.total_seconds()/60 <= minutes)]
+    
+    flights_mod = separateFlights(dates)
+    
+    date_axes = dates[['tagID','date']].value_counts()
+    hour_axes = dates[['tagID','hour']].value_counts()
+    y_axes = {'hour':max(hour_axes)+1,'date':max(date_axes)+1}
+    x_axes = {'hour':dates['hour'].unique(), 'date':dates['date'].unique()} 
+    
+    bee_div, bee_vect = divideBees(dates)
+    
+    return dates.to_dict('records'), flights_mod.to_dict('records'), bee_div, bee_vect, y_axes, x_axes
 
-
+    
+    
 @app.callback(Output('sunrise-sunset', 'data'),
               Input('lat', 'value'),
               Input('lon', 'value'),
@@ -935,54 +1024,47 @@ def update_on_hover(data, flights):
 
 #synchronize lat/lon
 
-#lat
 @app.callback(
-    Output('lat','value'),
-    Input('lat2','value'),
-    State('lat','value'),
-    prevent_initial_call=True)
-def updateLat1(value,value2):
-    if value != value2:    
-        return value
-    raise PreventUpdate
+    Output('lon', 'value'),
+    Output('lon2', 'value'),
+    Output('lon3', 'value'),
+    Input('lon', 'value'),
+    Input('lon2', 'value'),
+    Input('lon3', 'value'),
+    prevent_initial_call=True
+)
+def sync_lon(lon, lon2, lon3):
+    triggered_id = ctx.triggered_id
 
-
-
-@app.callback(
-    Output('lat2','value'),
-    Input('lat','value'),
-    State('lat2','value'),
-    prevent_initial_call=True)
-def updateLat2(value,value2):
-    if value != value2:    
-        return value
+    if triggered_id == 'lon' and lon != lon2:
+        return lon, lon, lon
+    elif triggered_id == 'lon2' and lon2 != lon:
+        return lon2, lon2, lon2
+    elif triggered_id == 'lon3' and lon3 != lon:
+        return lon3, lon3, lon3
     raise PreventUpdate
     
-#lon
-
-
-@app.callback(
-    Output('lon','value'),
-    Input('lon2','value'),
-    State('lon', 'value'),
-    prevent_initial_call=True)
-def updateLon1(value, value2):
-    if value != value2:    
-        return value
-    raise PreventUpdate
-
-
-
-@app.callback(
-    Output('lon2','value'),
-    Input('lon','value'),
-    State('lon2','value'),
-    prevent_initial_call=True)
-def updateLon2(value, value2):
-    if value != value2:    
-        return value
-    raise PreventUpdate
     
+@app.callback(
+    Output('lat', 'value'),
+    Output('lat2', 'value'),
+    Output('lat3', 'value'),
+    Input('lat', 'value'),
+    Input('lat2', 'value'),
+    Input('lat3', 'value'),
+    prevent_initial_call=True
+)
+def sync_lat(lat, lat2, lat3):
+    triggered_id = ctx.triggered_id
+    
+    if triggered_id == 'lat' and lat != lat2:
+        return lat, lat, lat
+    elif triggered_id == 'lat2' and lat2 != lat:
+        return lat2, lat2, lat2
+    elif triggered_id == 'lat3' and lat3 != lat:
+        return lat3, lat3, lat3
+    raise PreventUpdate
+
 
 #function to display clusters by user selection
 @app.callback(
@@ -1107,9 +1189,9 @@ def cluster_all_1(clusters, beeID, data, activity):
 )
 def show_individual(bee_id, data, x_axes, y_axes):
     if bee_id is None:
-        return None
+        raise PreventUpdate
     if data is None:
-        return None
+        raise PreventUpdate
         
         
     flights = pd.DataFrame(data)
@@ -1164,36 +1246,29 @@ def displayChronogramSingle(beeid, srss, data, activity):
    
 #subselection of graphs   
 
-@app.callback([Output('chrono-sub', 'children')],
+@app.callback(Output('pagination', 'max_value'),
+              Output('pagination', 'active_page'), 
+              Output('pagination-data','data'),
               Input('select-quant', 'value'),
               Input('sunrise-sunset', 'data'),
               Input('bee-filter','value'),
               Input('similar-bees','value'),
-              State('flights-mod', 'data'),
-              State('activity', 'data'),
+              State('flights', 'data'),
               State('bee-division','data'),
               State('bee-vectors','data'),
               prevent_initial_call=True)             
-def displayChronogramMulti(bees, srss, filter, similar, data, activity, division, vectors):
+def displayChronogramMulti(bees, srss, filter, similar, data, division, vectors):
 
     #none checks
-    if data is None:
-        raise PreventUpdate
-    if activity is None:
-        raise PreventUpdate
     if srss is None:
         raise PreventUpdate
     if bees is None:
         raise PreventUpdate
         
-    flights = pd.DataFrame(data)
     
+    flights = pd.DataFrame(data)
     ids = flights['tagID'].unique()
     
-    dt = pd.DataFrame(srss)
-    
-    flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')
-    flights['tripEnd'] = pd.to_datetime(flights['tripEnd'], format='mixed')
 
     if filter == "Morning Focused":
         bees = min(bees,len(division['morning']))
@@ -1205,59 +1280,73 @@ def displayChronogramMulti(bees, srss, filter, similar, data, activity, division
         bees = min(bees,len(division['even']))
         ids = division['even']
     else:
-        bees = bees
+        bees = min(bees, len(ids))
         
         
     if similar is not None:
         similars = findSimilar(vectors,similar)
         ids = list(set(ids).intersection(similars))
         bees = min(bees,len(ids))
+                      
             
-            
-            
-            
-    tabs = []
-    counter = 1
-    for i in range(0,bees,4):
+    counter = math.ceil(bees/perPage)
+    lists = itertools.zip_longest(*(iter(ids[:bees]),) * perPage)
+    bee_ids = []
+    for l in lists:
+        index = None
+        theList = list(l)
+        try:
+            index = theList.index(None)
+        except ValueError as e:
+            pass
     
-            columns = [[],[]]
-            
-            if counter * 4 <= bees:
-                limit = 4
-            else:
-                limit = bees % 4
-            for j in range(limit):
-                bee = ids[i+j]
-                bee = flights[flights['tagID']==bee]
-                graph = createActoGraphSub(bee,dt)
-                if j%2 == 0:
-                    columns[0].append(dcc.Graph(figure = graph,style={'width':'100%','height':'100%'},config={'responsive': True}))
-                else:
-                    columns[1].append(dcc.Graph(figure = graph,style={'width':'100%','height':'100%'},config={'responsive': True}))
-            
-            counter += 1
-            
-           
-           
-            tabs.append(dcc.Tab(className="custom-tab", selected_className="selected",label=f"Bees {i} to {i+limit-1}", children=[
-            
-                html.Div([
-                   
-                   html.Div(children=columns[0],style={'display':'flex','flexDirection':'column'},className="display-col"),
-                   
-                   html.Div(children=columns[1],style={'display':'flex','flexDirection':'column'},className="display-col")
-                
-                
-                ],style={'display':'flex'},className='double-display')
-            
-            
-            ],style={'backgroundColor':'#feffe3'}, selected_style={'font-weight':'bold','backgroundColor': '#301808', 'color': 'white'}))
-            
+        if index:
+            del theList[index:]
+        bee_ids.append(theList)
+        
+    return counter, 1, bee_ids
     
     
-    return [tabs]
     
+@app.callback(
+    Output('chrono-sub', 'children'),
+    Input('pagination', 'active_page'),
+    State('pagination-data', 'data'),
+    State('flights-mod', 'data'),
+    State('sunrise-sunset', 'data')
+)
+def displayChronoPage(page, bee_ids, data, srss):
+
+
+    if page is None:
+        raise PreventUpdate
+    if srss is None:
+        raise PreventUpdate
+        
+    dt = pd.DataFrame(srss)
+    if len(bee_ids) > 0:
+        bees = bee_ids[page - 1] 
+    else:
+        return html.Div(children=[html.P("No bees fit the specified criteria.",style={'padding-left':'30px','padding-right':'30px','padding-top':'10px'})],style={'display': 'flex','justifyContent': 'center','alignItems': 'center','width': '100%','height':'80vh','backgroundColor':'white'})
+    flights = pd.DataFrame(data)
+    flights['tripStart'] = pd.to_datetime(flights['tripStart'], format='mixed')
+    flights['tripEnd'] = pd.to_datetime(flights['tripEnd'], format='mixed')  
+
+    columns = [[] for i in range(perPage//2)]
     
+    for i in range(len(bees)):
+        bee = flights[flights['tagID'] == bees[i]]
+        graph = createActoGraphSub(bee,dt)
+        col = i%(perPage//2)
+        columns[i%(perPage//2)].append(dcc.Graph(figure = graph,style={'width':'100%','height':'100%'},config={'responsive': True}))
+        
+      
+    children = []
+    for c in columns:
+        children.append(html.Div(children=c,style={'display':'flex','flexDirection':'column'},className="display-col"))
+    
+    return html.Div(children = children,style={'display':'flex', 'margin':'auto', 'border':'1px black solid', 'background-color':'white'},className='multi-chrono')
+   
 #run app
 
 if __name__ == '__main__':
