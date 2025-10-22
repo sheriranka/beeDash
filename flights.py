@@ -22,6 +22,7 @@ def classifyLoc(dataset):
     loc = []
     start = []
     end = []
+    age = []
     bee = dataset
     
     for i in range(len(bee)-1):
@@ -29,40 +30,42 @@ def classifyLoc(dataset):
         next = bee.iloc[i+1]
         if cur['event'] == "entering" and next['event'] == "exiting":
             loc.append("Inside")
+            start.append(cur['datetime'])
+            end.append(next['datetime'])
         elif cur['event'] == "exiting" and next['event'] == "entering":
-            if (next['datetime'] - cur['datetime']).total_seconds() > t3:
-                loc.append("Inside")
-            else:
-                loc.append("Outside")
+            loc.append("Outside")
+            start.append(cur['datetime'])
+            end.append(next['datetime'])
+        elif cur['event'] == "entering" and next['event'] == "entering":
+            loc.append("Inside-Unknown")
+            start.append(cur['datetime'])
+            end.append(next['datetime'])
         else:
-            loc.append("Inside")
-        
-        start.append(cur['datetime'])
-        end.append(next['datetime'])
-    
+            loc.append("Outside-Unknown")
+            start.append(cur['datetime'])
+            end.append(next['datetime'])
+            
+        age.append((cur['datetime'] - bee['datetime'].iloc[0]).days)
 
     #new dataset with inside/outside and time start/end
-    BeeTravel = pd.DataFrame({'location': loc, 'start': start, 'end': end}) 
+    BeeTravel = pd.DataFrame({'location': loc, 'start': start, 'end': end, 'age':age}) 
     
     #classify short outside/insides as part of another group
-    flight = ['inside'] * len(BeeTravel)
+    flight = ['undefined'] * len(BeeTravel)
     
-    #Classify short flights as inside-short
-    #for i in range(2,len(BeeTravel)-2):
-    #    if BeeTravel['location'].iloc[i] != "Ramp" and (BeeTravel['end'].iloc[i] - BeeTravel['start'].iloc[i]).total_seconds() < 300:
-    #        BeeTravel['location'].iloc[i] = BeeTravel['location'].iloc[i-2]
-    #        if BeeTravel['location'].iloc[i] == "Inside":
-    #            flight[i] = 'inside-short'
 
     #Classify outside flights depending on length
     for i in range(len(BeeTravel)):
         if BeeTravel['location'].iloc[i] == "Outside":
-            if (BeeTravel['end'].iloc[i] - BeeTravel['start'].iloc[i]).total_seconds() < 600:
+            if (BeeTravel['end'].iloc[i] - BeeTravel['start'].iloc[i]).total_seconds() < 300:
                 flight[i] = "outside-short"
             elif (BeeTravel['end'].iloc[i] - BeeTravel['start'].iloc[i]).total_seconds() < 7200: #2 hrs
                 flight[i] = "outside-foraging"
             else:
                 flight[i] = "outside-long"
+        elif BeeTravel['location'].iloc[i] == "Inside":
+            flight[i] = "inside"
+            
 
 
     BeeTravel['activity'] = flight
@@ -82,7 +85,7 @@ def cleanData(data):
         dataset = dataset.assign(tagID = b)
         activity.append(dataset)
         for index, row in dataset.iterrows():
-            if row['location'] == "Outside":# and (row['activity'] == "outside-foraging" or row['activity'] == "outside-long"):
+            if row['location'] == "Outside":
                 newdataset['tagID'].append(b)
                 newdataset['tripStart'].append(row['start'])
                 newdataset['tripEnd'].append(row['end'])
